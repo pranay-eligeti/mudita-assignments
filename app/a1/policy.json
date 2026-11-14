@@ -1,0 +1,30 @@
+{
+  "company": "Lumen Analytics",
+  "description": "Fictional analytics consultancy used for this prototype.",
+  "timezone": "Asia/Kolkata",
+  "working_hours": {"days": [0, 1, 2, 3, 4], "start": "10:00", "end": "17:00"},
+  "slot_minutes": 30,
+  "lookahead_days": 7,
+  "min_notice_hours": 2,
+  "services": [
+    {"id": "dashboards", "name": "Dashboards & BI development", "description": "Executive and operational dashboards (Power BI, Tableau, Looker)."},
+    {"id": "data_pipelines", "name": "Data pipeline engineering", "description": "ETL/ELT pipelines and warehouse modelling."},
+    {"id": "ml_forecasting", "name": "Forecasting & ML models", "description": "Demand forecasting, churn and anomaly models."},
+    {"id": "data_audit", "name": "Data quality audit", "description": "Fixed-scope audit of an existing data stack."}
+  ],
+  "qualification": {
+    "required_fields": ["service", "company_name", "budget_usd", "start_within_weeks"],
+    "min_budget_usd": 5000,
+    "max_start_within_weeks": 12
+  },
+  "reps": [
+    {"id": "asha", "name": "Asha Rao", "email": "asha@example.test", "services": ["dashboards", "data_audit"], "calendar_id": "primary"},
+    {"id": "ravi", "name": "Ravi Menon", "email": "ravi@example.test", "services": ["data_pipelines", "ml_forecasting"], "calendar_id": "primary"}
+  ],
+  "routing_rules": [
+    {"id": "RT1", "description": "Engagements of 50,000 USD or more go to Asha Rao (senior lead).", "when": {"min_budget_usd": 50000}, "assign": "asha"},
+    {"id": "RT2", "description": "Dashboards and data audits go to Asha Rao.", "when": {"service_in": ["dashboards", "data_audit"]}, "assign": "asha"},
+    {"id": "RT3", "description": "Pipelines and ML go to Ravi Menon.", "when": {"service_in": ["data_pipelines", "ml_forecasting"]}, "assign": "ravi"}
+  ],
+  "fallback_routing": "least_loaded"
+}

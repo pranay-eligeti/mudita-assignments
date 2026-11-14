@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A1 · Sales assistant</title><link rel="stylesheet" href="/static/app.css">
+<style>
+.cols{display:grid;grid-template-columns:300px minmax(380px,1fr) 400px;gap:14px;align-items:start}
+.lead{padding:9px 10px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;cursor:pointer;background:#fff}
+.lead.sel{outline:2px solid var(--brand)}
+.chat{max-height:62vh;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:4px}
+.msg{max-width:82%;padding:8px 10px;border-radius:10px;white-space:pre-wrap;word-break:break-word}
+.msg.in{background:#eef1f6;align-self:flex-start}.msg.bot{background:#e6ecff;align-self:flex-end}.msg.human{background:#e3f6ea;align-self:flex-end}
+.msg .meta{font-size:11px;color:var(--mute);margin-top:3px}
+.ch{font-size:11px;font-weight:700;text-transform:uppercase;color:#fff;padding:1px 6px;border-radius:4px;margin-right:6px}
+.ch.instagram{background:#c13584}.ch.whatsapp{background:#25d366}.ch.email{background:#5f6b7a}
+.pill{display:inline-flex;gap:5px;align-items:center;padding:3px 9px;border-radius:99px;border:1px solid var(--line);font-size:12px;background:#fff}
+.pill i{width:8px;height:8px;border-radius:50%;background:#c3c9d4;display:inline-block}
+.pill.ok i{background:var(--ok)}.pill.error i,.pill.expired i{background:var(--bad)}.pill.unconfigured i,.pill.not\ connected i{background:var(--warn)}
+.act.error{color:var(--bad)}.act.warn{color:var(--warn)}
+dialog{border:1px solid var(--line);border-radius:12px;width:min(760px,92vw)}
+@media(max-width:1200px){.cols{grid-template-columns:1fr}}
+</style></head>
+<body>
+<header>
+  <h1>Sales assistant · Lumen Analytics (fictional)</h1>
+  <nav><a href="/">Home</a><a href="/a2">Assignment 2</a></nav>
+  <span class="spacer"></span>
+  <div id="health" class="row"></div>
+  <button onclick="openPolicy()">Policy</button>
+</header>
+<main>
+<div id="alerts"></div>
+<div class="cols">
+  <section class="card"><h2>Inquiries</h2><div id="leads" class="small muted">No inquiries yet. Send a real message from Instagram, WhatsApp or the test inbox.</div></section>
+  <section class="card"><h2 id="convTitle">Conversation</h2><div id="chat" class="chat"></div>
+    <div class="row" style="margin-top:10px"><input id="human" placeholder="Send as a human (works any time; use Take over first to stop the bot)"><button onclick="sendHuman()">Send</button></div></section>
+  <section id="detail" class="card"><h2>Details</h2><div class="muted small">Select an inquiry.</div></section>
+</div>
+</main>
+<dialog id="policyDlg"><h2 style="margin-top:0">Business policy (editable)</h2>
+  <div class="small muted">Services, qualification criteria, reps, routing rules, timezone and working hours. Saved policy applies to the next message. The model cannot change it.</div>
+  <textarea id="policyText" style="min-height:380px;margin-top:8px"></textarea><div id="policyMsg" class="small"></div>
+  <div class="row" style="margin-top:8px"><button class="primary" onclick="savePolicy()">Save</button><button onclick="resetPolicy()">Reset to default</button><span class="spacer"></span><button onclick="policyDlg.close()">Close</button></div></dialog>
+<script>
+let sel=null,timer=null,H=null;
+const $=id=>document.getElementById(id);const policyDlg=$('policyDlg');
+const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+async function api(p,o){const r=await fetch(p,Object.assign({headers:{'Content-Type':'application/json'}},o));if(!r.ok){let m=r.statusText;try{m=(await r.json()).detail||m}catch(e){}throw new Error(m)}return r.json()}
+const clsMap={qualified:'b-ok',not_qualified:'b-bad',needs_more_info:'b-warn',new:''};
+async function refreshHealth(){
+  try{H=await api('/a1/api/health');
+  $('health').innerHTML=Object.entries(H.channels).map(([k,v])=>`<span class="pill ${v.status}" title="${esc(v.detail||'')}\nlast in: ${v.last_inbound_at||'—'}\nlast out: ${v.last_outbound_at||'—'}"><i></i>${k}: ${esc(v.status)}</span>`).join('')+
+   (H.google_account?`<span class="pill ok" title="connected Google account"><i></i>${esc(H.google_account)}</span><button onclick="gdisc()">Disconnect Google</button>`:`<a href="/a1/auth/google/start"><button class="primary">Connect Google (Gmail + Calendar)</button></a>`)+
+   `<span class="badge" title="LLM usage for A1 (estimated cost)">${H.usage.calls} calls · ≈$${H.usage.cost_usd}</span>`;
+  const bad=Object.entries(H.channels).filter(([k,v])=>['error','expired'].includes(v.status));
+  $('alerts').innerHTML=bad.map(([k,v])=>`<div class="banner bad">${k}: ${esc(v.status)} — ${esc(v.detail||'')}</div>`).join('');}catch(e){}}
+async function gdisc(){if(confirm('Disconnect Google?')){await api('/a1/auth/google/disconnect',{method:'POST'});refreshHealth()}}
+async function refreshLeads(){
+  const ls=await api('/a1/api/leads');
+  $('leads').innerHTML=ls.length?ls.map(l=>`<div class="lead ${sel===l.id?'sel':''}" onclick="pick(${l.id})">
+    <div class="row"><span class="ch ${l.channel}">${l.channel}</span><b>${esc(l.sender)}</b><span class="spacer"></span>${l.open_errors?'<span class="badge b-bad">error</span>':''}${l.automation_enabled?'':'<span class="badge b-warn">human</span>'}</div>
+    <div class="small muted" style="margin:3px 0">${esc(l.last_text)}</div>
+    <span class="badge ${clsMap[l.classification]||''}">${l.classification}</span> <span class="badge">${l.state}</span> ${l.assigned_rep?`<span class="badge">${l.assigned_rep}</span>`:''}</div>`).join(''):'<span class="muted">No inquiries yet. Send a real message from Instagram, WhatsApp or the test inbox.</span>'}
+function pick(id){sel=id;refreshLeads();loadDetail()}
+async function loadDetail(){if(!sel)return;
+  const d=await api('/a1/api/leads/'+sel);const l=d.lead;
+  $('convTitle').innerHTML=`<span class="ch ${l.channel}">${l.channel}</span> ${esc(l.sender_name||l.sender_id)} <span class="muted">${esc(l.sender_id)}</span>`;
+  const chat=$('chat');const atBottom=chat.scrollTop+chat.clientHeight>=chat.scrollHeight-40;
+  chat.innerHTML=d.messages.map(m=>`<div class="msg ${m.direction==='in'?'in':m.author}"><div>${esc(m.text)}</div><div class="meta">${m.author} · ${m.created_at.slice(11,19)}${m.direction==='out'?' · '+m.delivery:''}${m.delivery_error?` <span style="color:var(--bad)">${esc(m.delivery_error)}</span>`:''}</div></div>`).join('');
+  if(atBottom)chat.scrollTop=chat.scrollHeight;
+  const f=l.fields,ev=Object.fromEntries(l.evidence.map(e=>[e.field,e]));
+  const row=(k,label)=>`<tr><td>${label}</td><td>${f[k]!==undefined?esc(f[k]):'<span class="muted">not stated</span>'}</td><td class="small muted">${ev[k]?'“'+esc(ev[k].quote)+'”':''}</td></tr>`;
+  const bk=d.bookings.map(b=>`<div class="ev"><span class="badge ${b.status==='confirmed'?'b-ok':b.status==='uncertain'?'b-warn':'b-bad'}">${b.status}</span> ${esc(b.display)} ${b.html_link?`<a href="${b.html_link}" target="_blank">open event</a>`:''}${b.error?`<div class="small" style="color:var(--bad)">${esc(b.error)}</div>`:''}<div class="small muted">event id ${b.event_id}</div></div>`).join('');
+  $('detail').innerHTML=`
+   <h2>Status</h2><div class="row"><span class="badge ${clsMap[l.classification]||''}">${l.classification}</span><span class="badge">${l.state}</span>${d.rep_name?`<span class="badge b-run">assigned: ${esc(d.rep_name)}</span>`:'<span class="badge">unassigned</span>'}</div>
+   <div class="row" style="margin-top:10px">${l.automation_enabled?`<button class="danger" onclick="auto(false)">Take over (stop automation)</button>`:`<span class="badge b-warn">Human in control: no automatic actions</span><button onclick="auto(true)">Resume automation</button>`}
+     <button onclick="retry()">Retry last step</button></div>
+   <h2 style="margin-top:14px">Extracted · with evidence</h2><table>${row('company_name','Company')}${row('service','Service')}${row('budget_usd','Budget (USD)')}${row('start_within_weeks','Start within (weeks)')}</table>
+   <h2 style="margin-top:14px">Rule trace</h2>${l.rule_trace.length?`<table>${l.rule_trace.map(t=>`<tr><td class="small"><b>${esc(t.rule)}</b></td><td><span class="badge ${t.result==='pass'||t.result==='match'?'b-ok':t.result==='fail'?'b-bad':t.result==='missing'?'b-warn':''}">${esc(t.result)}</span></td><td class="small muted">${esc(t.detail)}</td></tr>`).join('')}</table>`:'<div class="muted small">none yet</div>'}
+   <h2 style="margin-top:14px">Meeting</h2>${d.pending?`<div class="ev">awaiting confirmation: ${esc(d.pending)}</div>`:''}${d.offered.length&&!d.bookings.length?`<div class="small muted">offered:<br>${d.offered.map((x,i)=>`${i+1}) ${esc(x)}`).join('<br>')}</div>`:''}${bk||'<div class="muted small">no booking</div>'}
+   ${d.bookings.some(b=>['uncertain','failed'].includes(b.status))?`<button style="margin-top:6px" onclick="reconcile()">Reconcile with calendar</button>`:''}
+   <h2 style="margin-top:14px">Action log</h2><div style="max-height:260px;overflow:auto">${d.actions.map(a=>`<div class="ev act ${a.level}"><span class="muted">${a.created_at.slice(11,19)}</span> <b>${esc(a.kind)}</b> ${esc(a.detail)}</div>`).join('')||'<span class="muted small">empty</span>'}</div>
+   <div class="small muted" style="margin-top:8px">LLM: ${d.usage.calls} calls · ≈$${(+d.usage.cost).toFixed(4)}</div>`;}
+async function auto(en){await api(`/a1/api/leads/${sel}/automation`,{method:'POST',body:JSON.stringify({enabled:en})});tick()}
+async function retry(){await api(`/a1/api/leads/${sel}/retry`,{method:'POST'});setTimeout(tick,800)}
+async function reconcile(){const r=await api(`/a1/api/leads/${sel}/reconcile`,{method:'POST'});alert(r.result);tick()}
+async function sendHuman(){const t=$('human').value.trim();if(!t||!sel)return;await api(`/a1/api/leads/${sel}/message`,{method:'POST',body:JSON.stringify({text:t})});$('human').value='';tick()}
+async function openPolicy(){const p=await api('/a1/api/policy');$('policyText').value=JSON.stringify(p,null,2);$('policyMsg').textContent='';policyDlg.showModal()}
+async function savePolicy(){try{await api('/a1/api/policy',{method:'PUT',body:$('policyText').value});$('policyMsg').textContent='Saved.';$('policyMsg').style.color='var(--ok)'}catch(e){$('policyMsg').textContent=e.message;$('policyMsg').style.color='var(--bad)'}}
+async function resetPolicy(){const p=await api('/a1/api/policy/reset',{method:'POST'});$('policyText').value=JSON.stringify(p,null,2);$('policyMsg').textContent='Reset to bundled default.'}
+async function tick(){await Promise.all([refreshLeads(),loadDetail(),refreshHealth()])}
+tick();setInterval(tick,3000);
+</script></body></html>

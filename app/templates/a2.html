@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A2 · Three-agent operations coordinator</title><link rel="stylesheet" href="/static/app.css"></head>
+<body>
+<header>
+  <h1>Operations coordinator · three agents</h1>
+  <nav><a href="/">Home</a><a href="/a1">Assignment 1</a></nav>
+  <span class="spacer"></span>
+  <span class="badge" title="Your private session. Runs created here are invisible to other sessions.">session <b id="sid">{{ sid_short }}</b></span>
+  <button class="danger" onclick="resetAll()">Reset session</button>
+</header>
+<main>
+<div class="grid g2">
+  <section class="card">
+    <h2>Input</h2>
+    <div class="row"><button onclick="loadSample()">Load sample</button><span class="muted small">fictional transcript + rules</span></div>
+    <label>Meeting date</label><input id="date" placeholder="YYYY-MM-DD">
+    <label>Transcript</label><textarea id="transcript" style="min-height:220px"></textarea>
+    <details><summary>Company rules (JSON)</summary><textarea id="rules" style="min-height:200px"></textarea></details>
+    <div class="sim" style="margin-top:10px">
+      <div class="small"><b style="color:var(--sim)">SIMULATED FAULTS</b> (for demonstration; labelled wherever they appear)</div>
+      <label>Simulate model outage in agent</label>
+      <select id="failAgent"><option value="">none</option><option>intake</option><option>planner</option><option>review</option></select>
+      <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="inject" style="width:auto"> Inject a weekend deadline into the Planner's first plan (violates R1)</label>
+    </div>
+    <div class="row" style="margin-top:12px"><button class="primary" id="startBtn" onclick="startRun()">Start run</button><span id="formMsg" class="small"></span></div>
+    <h2 style="margin-top:16px">Runs in this session</h2>
+    <div id="runs" class="small muted">none</div>
+  </section>
+
+  <section id="view" class="card"><div class="muted">Load the sample and start a run. Each agent's input, output, the hand-offs between them and the final plan appear here.</div></section>
+</div>
+</main>
+<script>
+let current=null, selAgent='planner', timer=null, lastView=null;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const j=(o)=>esc(JSON.stringify(o,null,2));
+async function api(path,opts){const r=await fetch(path,Object.assign({headers:{'Content-Type':'application/json'}},opts));
+  if(!r.ok){let m=r.statusText;try{m=(await r.json()).detail||m}catch(e){} throw new Error(m)} return r.json()}
+async function loadSample(){const s=await api('/a2/api/sample');$('transcript').value=s.transcript;$('date').value=s.meeting_date;$('rules').value=JSON.stringify(s.rules,null,2)}
+async function startRun(){
+  $('formMsg').textContent='';$('startBtn').disabled=true;
+  try{
+    let rules=null;if($('rules').value.trim()){rules=JSON.parse($('rules').value)}
+    const r=await api('/a2/api/runs',{method:'POST',body:JSON.stringify({transcript:$('transcript').value,meeting_date:$('date').value,rules,fault:{fail_agent:$('failAgent').value||null,inject_violation:$('inject').checked}})});
+    current=r.id;poll();
+  }catch(e){$('formMsg').textContent=e.message;$('formMsg').style.color='var(--bad)'}
+  $('startBtn').disabled=false;
+}
+async function resetAll(){if(!confirm('Delete all runs in this session?'))return;await api('/a2/api/reset',{method:'POST'});current=null;lastView=null;$('view').innerHTML='<div class="muted">Session reset.</div>';refreshRuns()}
+async function refreshRuns(){const s=await api('/a2/api/session');$('sid').textContent=s.session;
+  $('runs').innerHTML=s.runs.length?s.runs.map(r=>`<div><a href="#" onclick="current='${r.id}';poll();return false">${r.id}</a> <span class="badge ${cls(r.status)}">${r.status}</span> v${r.context_version}</div>`).join(''):'none'}
+function cls(s){return {done:'b-ok',running:'b-run',pending:'b-run',failed:'b-bad',needs_human:'b-warn'}[s]||''}
+async function poll(){clearTimeout(timer);if(!current)return;
+  try{const v=await api('/a2/api/runs/'+current);lastView=v;render(v);refreshRuns();
+    if(['running','pending'].includes(v.status))timer=setTimeout(poll,1200)}catch(e){$('view').innerHTML='<div class="banner bad">'+esc(e.message)+'</div>'}}
+async function resume(){await api(`/a2/api/runs/${current}/resume`,{method:'POST'});poll()}
+async function correctFact(id){
+  const f=lastView.context.facts.find(x=>x.id===id);
+  const text=prompt('Corrected fact text (leave as is to keep):',f.text);if(text===null)return;
+  const dl=prompt('Stated deadline wording (blank = none):',f.deadline_stated||'');if(dl===null)return;
+  const ow=prompt('Stated owner (blank = none):',f.owner_stated||'');if(ow===null)return;
+  try{await api(`/a2/api/runs/${current}/facts/${id}`,{method:'POST',body:JSON.stringify({text,deadline_text:dl,owner:ow})});poll()}catch(e){alert(e.message)}}
+function pickAgent(a){selAgent=a;render(lastView)}
+function agentCard(v,a,label,desc){const s=v.agents[a];
+  const flt=v.steps.some(x=>x.agent===a&&x.simulated_fault);
+  return `<div class="agent ${selAgent===a?'sel':''}" onclick="pickAgent('${a}')"><div class="t"><span class="dot ${s.status}"></span>${label}</div>
+  <div class="small muted">${desc}</div><div class="small" style="margin-top:4px">status: <b>${s.status}</b> · ${s.runs} step(s) ${flt?'<span class="badge b-sim">simulated fault</span>':''}</div></div>`}
+function render(v){
+  if(!v){return}
+  let h='';
+  const b={done:['ok','Plan approved by the Review Agent.'],needs_human:['warn','Review limit reached. Unresolved issues need a human decision (listed below).'],failed:['bad','Run failed: '+esc(v.error||'')]}[v.status];
+  if(b)h+=`<div class="banner ${b[0]}">${b[1]}${v.status==='failed'?' <button onclick="resume()" style="margin-left:8px">Resume (reuses completed steps)</button>':''}</div>`;
+  if(['running','pending'].includes(v.status))h+=`<div class="banner" style="background:#e6ecff;color:var(--brand)">Running…</div>`;
+  h+=`<div class="row" style="margin-bottom:8px"><b>${v.id}</b><span class="badge ${cls(v.status)}">${v.status}</span><span class="badge">context v${v.context_version}</span>
+    <span class="badge" title="estimated; pricing is configurable">${v.usage.calls} LLM calls · ${v.usage.input_tokens}+${v.usage.output_tokens} tok · ≈$${v.usage.cost_usd}</span></div>`;
+  h+=`<div class="agents">${agentCard(v,'intake','1 · Intake','extract facts + gaps')}<span class="arrow">→</span>${agentCard(v,'planner','2 · Planning','tasks, owners, deadlines')}<span class="arrow">⇄</span>${agentCard(v,'review','3 · Review','check vs transcript + rules')}</div>`;
+  const steps=v.steps.filter(s=>s.agent===selAgent);
+  h+=`<h2 style="margin-top:14px">${selAgent} · input / output per step</h2>`;
+  h+=steps.length?steps.map(s=>`<details><summary>round ${s.round} · ctx v${s.context_version} · ${s.status} · attempts ${s.attempts} ${s.simulated_fault?'<span class="badge b-sim">SIMULATED FAULT</span>':''}</summary>
+    ${s.error?`<div class="small" style="color:var(--bad);margin:4px 0">${esc(s.error)}</div>`:''}
+    <div class="small muted">input</div><pre>${j(s.input)}</pre><div class="small muted" style="margin-top:6px">output</div><pre>${j(s.output)}</pre></details>`).join(''):'<div class="muted small">No step yet.</div>';
+  if(v.context){h+=`<h2 style="margin-top:14px">Shared context · facts (v${v.context.version})</h2><table><tr><th>ID</th><th>Kind</th><th>Fact</th><th>Owner / deadline stated</th><th>Source</th><th></th></tr>`+
+    v.context.facts.map(f=>`<tr><td>${f.id}</td><td>${f.kind}</td><td>${esc(f.text)} ${f.corrected?'<span class="badge b-warn">corrected</span>':''}${!f.quote_verified?'<span class="badge b-bad">quote unverified</span>':''}${f.original_text?`<div class="small muted">was: ${esc(f.original_text)}</div>`:''}</td>
+    <td>${esc(f.owner_stated||'—')} / ${esc(f.deadline_stated||'—')}</td><td class="small muted">L${f.source.line_start}${f.source.line_end>f.source.line_start?'–'+f.source.line_end:''}: “${esc(f.source.quote)}”</td>
+    <td><button onclick="correctFact('${f.id}')">Correct</button></td></tr>`).join('')+'</table>';
+    if(v.context.gaps.length)h+=`<h2 style="margin-top:12px">Flagged gaps</h2>`+v.context.gaps.map(g=>`<div class="ev"><span class="badge ${g.kind==='conflict'?'b-bad':'b-warn'}">${g.kind}</span> ${esc(g.description)}</div>`).join('')}
+  h+=`<h2 style="margin-top:14px">Hand-offs and feedback</h2>`+(v.handoffs.length?v.handoffs.map(x=>`<details><summary>#${x.seq} ${x.from} → ${x.to} · ${x.kind} · ctx v${x.context_version} ${x.valid?'<span class="badge b-ok">valid</span>':'<span class="badge b-bad">invalid</span>'}</summary>
+    ${x.kind==='feedback'?'<div class="small muted">issues returned to Planner:</div><table><tr><th>Sev</th><th>Task</th><th>Rule</th><th>Problem</th><th>Required correction</th><th>By</th></tr>'+(x.payload.feedback||[]).map(i=>`<tr><td>${i.severity}</td><td>${i.task_id||''}</td><td>${i.rule_id||''}</td><td>${esc(i.problem)}</td><td>${esc(i.required_correction)}</td><td>${i.source==='static'?'validator':'review agent'}</td></tr>`).join('')+'</table>':`<pre>${j(x.payload)}</pre>`}</details>`).join(''):'<div class="muted small">none yet</div>');
+  h+=`<h2 style="margin-top:14px">Event log</h2><div>`+v.events.map(e=>`<div class="ev ${e.kind}">${esc(e.at.slice(11,19))} · ${esc(e.text)}</div>`).join('')+'</div>';
+  if(v.final){const p=v.final.plan,sup=p.tasks.filter(t=>t.basis==='supported'),rec=p.tasks.filter(t=>t.basis!=='supported');
+    const tr=t=>`<tr><td>${t.id}</td><td>${esc(t.title)}<div class="small muted">${esc(t.rationale)}</div></td><td>${esc(t.owner||'unassigned')}</td><td>${esc(t.deadline||'—')}</td><td>${t.depends_on.join(', ')||'—'}</td><td class="small">${[...t.fact_refs,...t.rule_refs].join(', ')}</td></tr>`;
+    h+=`<h2 style="margin-top:14px">Final plan · ${v.final.status} after ${v.final.rounds} review round(s)</h2>
+    <div class="small muted">Supported by the transcript</div><table><tr><th>ID</th><th>Task</th><th>Owner</th><th>Deadline</th><th>Depends on</th><th>Evidence</th></tr>${sup.map(tr).join('')||'<tr><td colspan=6 class="muted">none</td></tr>'}</table>
+    <div class="small muted" style="margin-top:8px">Planner recommendations (not stated in the transcript)</div><table><tr><th>ID</th><th>Task</th><th>Owner</th><th>Deadline</th><th>Depends on</th><th>Evidence</th></tr>${rec.map(tr).join('')||'<tr><td colspan=6 class="muted">none</td></tr>'}</table>
+    <div class="small muted" style="margin-top:8px">Unresolved questions</div>${p.unresolved_questions.map(x=>`<div class="ev">? ${esc(x)}</div>`).join('')||'<div class="muted small">none</div>'}
+    ${v.final.unresolved_issues.length?'<div class="small muted" style="margin-top:8px">Unresolved review issues</div>'+v.final.unresolved_issues.map(i=>`<div class="ev warn"><b>${i.severity}</b> ${i.task_id||''} ${esc(i.problem)} → ${esc(i.required_correction)}</div>`).join(''):''}`}
+  $('view').innerHTML=h;
+}
+loadSample();refreshRuns();
+</script></body></html>

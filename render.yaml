@@ -1,0 +1,33 @@
+# All-free deployment: Render free web service (Docker) + Render free Postgres.
+# Free web services sleep after 15 min without inbound traffic -> run the keep-alive (see README "Keeping it awake").
+# Free Postgres expires 30 days after creation: fine for the 7-day review window, not for anything longer.
+services:
+  - type: web
+    name: mudita-assignments
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - {key: DATABASE_URL, fromDatabase: {name: mudita-db, property: connectionString}}
+      - {key: LLM_PROVIDER, value: gemini}
+      - {key: MODEL, value: gemini-3.5-flash-lite}   # worked in a live check on 2026-11-14 (Intake agent); not yet checked end to end
+      - {key: GEMINI_API_KEY, sync: false}
+      - {key: MODEL_FALLBACKS, value: "gemini-3.1-flash-lite,gemini-3.5-flash"}
+      - {key: BASE_URL, sync: false}
+      - {key: SECRET_KEY, generateValue: true}
+      - {key: ADMIN_PASSWORD, sync: false}
+      - {key: GOOGLE_CLIENT_ID, sync: false}
+      - {key: GOOGLE_CLIENT_SECRET, sync: false}
+      - {key: EMAIL_ALLOWED_SENDERS, sync: false}
+      - {key: WA_VERIFY_TOKEN, sync: false}
+      - {key: WA_APP_SECRET, sync: false}
+      - {key: WA_ACCESS_TOKEN, sync: false}
+      - {key: WA_PHONE_NUMBER_ID, sync: false}
+      - {key: IG_VERIFY_TOKEN, sync: false}
+      - {key: IG_APP_SECRET, sync: false}
+      - {key: IG_ACCESS_TOKEN, sync: false}
+      - {key: IG_ACCOUNT_ID, sync: false}
+
+databases:
+  - name: mudita-db
+    plan: free

@@ -375,3 +375,23 @@ def test_validator_max_tasks_and_qa_dependency_and_weekend():
     tasks.append({"id": "T5", "title": "Release to customers", "owner": "Maya", "basis": "recommendation", "deadline": "2026-11-22"})
     out = " | ".join(problems(_plan(*tasks)))
     assert "owns 4 tasks" in out and "must depend on a task matching" in out and "Sunday" in out
+
+
+def _t(id, title, owner, deadline=None, deps=(), basis="recommendation"):
+    return {"id": id, "title": title, "owner": owner, "deadline": deadline, "depends_on": list(deps), "basis": basis}
+
+
+def test_r3_does_not_force_qa_on_internal_send_tasks_but_catches_real_launch_tasks():
+    p = _plan(_t("T1", "Send warehouse capacity numbers", "Dan"),
+              _t("T2", "Execute launch email to waitlist", "Maya"),
+              _t("T3", "Legal review of launch email offer claim", "Legal"))
+    r3 = [i for i in static_check(p, _ctx(), RULES) if i.rule_id == "R3"]
+    assert [i.task_id for i in r3] == ["T2"]  # not the internal send, not the legal review
+
+
+def test_dependency_due_after_dependent_is_flagged():
+    p = _plan(_t("T1", "Send warehouse capacity numbers", "Dan", "2026-11-18", ["T2"]), _t("T2", "QA testing", "QA", "2026-12-04"))
+    issues = [i for i in static_check(p, _ctx(), RULES) if "after it" in i.problem]
+    assert len(issues) == 1 and issues[0].task_id == "T1"
+    ok = _plan(_t("T1", "Send numbers", "Dan", "2026-12-05", ["T2"]), _t("T2", "QA testing", "QA", "2026-12-04"))
+    assert not [i for i in static_check(ok, _ctx(), RULES) if "after it" in i.problem]

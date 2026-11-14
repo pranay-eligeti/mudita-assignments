@@ -149,6 +149,15 @@ def static_check(plan: PlanOutput, ctx: Context, rules: RulesDoc) -> list[Issue]
                         add("major", f"{t.id} has a deadline but none of its cited facts states one, so the date is invented.",
                             "Remove the deadline (and ask for one under unresolved questions) or label the task a recommendation.", task=t.id)
 
+    by_id_dl = {t.id: _parse_date(t.deadline) for t in plan.tasks}
+    for t in plan.tasks:  # a task cannot be due before something it depends on
+        mine = by_id_dl.get(t.id)
+        for d in t.depends_on:
+            theirs = by_id_dl.get(d)
+            if mine and theirs and theirs > mine:
+                add("major", f"{t.id} is due {t.deadline} but depends on {d}, which is due {theirs.isoformat()}, after it.",
+                    f"Remove the dependency on {d} if it is not genuinely required, or move the deadlines so {d} finishes first.", task=t.id)
+
     cyc = _cycle(plan.tasks)
     if cyc:
         add("blocker", "Dependency cycle: " + " -> ".join(cyc), "Break the cycle so the dependency graph is acyclic.", task=cyc[0])

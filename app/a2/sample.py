@@ -25,7 +25,7 @@ SAMPLE_RULES = {
         {"id": "R2", "text": "No single person may own more than 3 tasks.",
          "check": {"type": "max_tasks_per_owner", "max": 3}},
         {"id": "R3", "text": "Any task that launches, releases or publishes to customers must depend on a QA/testing task.",
-         "check": {"type": "dependency", "if_title_matches": "^(launch|release|publish|send|go[- ]live)\\b",
+         "check": {"type": "dependency", "if_title_matches": "^(launch|release|publish|go[- ]live)\\b|^(execute|send|deploy)\\b.*\\b(launch|email|campaign|catalogue|site|page|newsletter|announcement|waitlist|customers?)\\b",
                    "must_depend_on_matches": "qa|test"}},
         {"id": "R4", "text": "Tasks may only be owned by people named in the transcript or by the roles Legal, Finance or QA. Never invent an owner."},
         {"id": "R5", "text": "Any customer-facing message that makes a pricing, shipping or offer claim requires Legal review before it is sent."},

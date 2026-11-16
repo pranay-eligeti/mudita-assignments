@@ -86,7 +86,7 @@ async function loadDetail(){if(!sel)return;
 async function auto(en){await api(`/a1/api/leads/${sel}/automation`,{method:'POST',body:JSON.stringify({enabled:en})});tick()}
 async function retry(){await api(`/a1/api/leads/${sel}/retry`,{method:'POST'});setTimeout(tick,800)}
 const BLOCKERS={
- whatsapp:'Implemented and tested against fakes, webhook endpoint deployed, but NOT verified against Meta. Blocked on 16 Nov 2026: the Meta app wizard needs a business portfolio ("No businesses available"), and creating one failed with: "Your Advertising Access is Restricted. You\'re no longer allowed to use Meta technologies to advertise. You can\'t run ads, manage advertising assets, or create new ad accounts or business portfolios."',
+ whatsapp:'RECEIVE-ONLY on a Twilio trial sandbox (checked 16 Nov 2026). Inbound works live: a real message from the verified tester number was received through the signature-checked webhook, classified with evidence, routed and given slot offers. Replies are NOT delivered: the app returns them (logged as sent) but the trial sender only allows template messages, so nothing reaches WhatsApp. Only the verified tester number can message it. The Meta route is blocked by a business-portfolio restriction.',
  instagram:'Implemented and tested against fakes, webhook endpoint deployed, but NOT verified against Meta. Blocked by the same business-portfolio requirement and account restriction as WhatsApp (see above); Instagram messaging in development mode also only delivers webhooks for app roles.'};
 function openChan(k){const v=(H&&H.channels[k])||{};const w=H&&H.webhooks||{};
   $('chanTitle').textContent=k.charAt(0).toUpperCase()+k.slice(1)+' channel';

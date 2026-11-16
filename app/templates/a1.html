@@ -39,6 +39,8 @@ dialog{border:1px solid var(--line);border-radius:12px;width:min(760px,92vw)}
   <div class="small muted">Services, qualification criteria, reps, routing rules, timezone and working hours. Saved policy applies to the next message. The model cannot change it.</div>
   <textarea id="policyText" style="min-height:380px;margin-top:8px"></textarea><div id="policyMsg" class="small"></div>
   <div class="row" style="margin-top:8px"><button class="primary" onclick="savePolicy()">Save</button><button onclick="resetPolicy()">Reset to default</button><span class="spacer"></span><button onclick="policyDlg.close()">Close</button></div></dialog>
+<dialog id="resetDlg"><h2 style="margin-top:0">Reset this lead?</h2><p class="small">Deletes this lead, its messages, bookings and action log from the dashboard so the same sender starts a fresh lead. Any Google Calendar event already created is not deleted. This cannot be undone.</p>
+  <div class="row"><button class="danger" onclick="doReset()">Reset lead</button><button onclick="resetDlg.close()">Cancel</button></div></dialog>
 <script>
 let sel=null,timer=null,H=null;
 const $=id=>document.getElementById(id);const policyDlg=$('policyDlg');
@@ -72,7 +74,7 @@ async function loadDetail(){if(!sel)return;
   $('detail').innerHTML=`
    <h2>Status</h2><div class="row"><span class="badge ${clsMap[l.classification]||''}">${l.classification}</span><span class="badge">${l.state}</span>${d.rep_name?`<span class="badge b-run">assigned: ${esc(d.rep_name)}</span>`:'<span class="badge">unassigned</span>'}</div>
    <div class="row" style="margin-top:10px">${l.automation_enabled?`<button class="danger" onclick="auto(false)">Take over (stop automation)</button>`:`<span class="badge b-warn">Human in control: no automatic actions</span><button onclick="auto(true)">Resume automation</button>`}
-     <button onclick="retry()">Retry last step</button></div>
+     <button onclick="retry()">Retry last step</button><span class="spacer"></span><button onclick="resetDlg.showModal()">Reset lead</button></div>
    <h2 style="margin-top:14px">Extracted · with evidence</h2><table>${row('company_name','Company')}${row('service','Service')}${row('budget_usd','Budget (USD)')}${row('start_within_weeks','Start within (weeks)')}</table>
    <h2 style="margin-top:14px">Rule trace</h2>${l.rule_trace.length?`<table>${l.rule_trace.map(t=>`<tr><td class="small"><b>${esc(t.rule)}</b></td><td><span class="badge ${t.result==='pass'||t.result==='match'?'b-ok':t.result==='fail'?'b-bad':t.result==='missing'?'b-warn':''}">${esc(t.result)}</span></td><td class="small muted">${esc(t.detail)}</td></tr>`).join('')}</table>`:'<div class="muted small">none yet</div>'}
    <h2 style="margin-top:14px">Meeting</h2>${d.pending?`<div class="ev">awaiting confirmation: ${esc(d.pending)}</div>`:''}${d.offered.length&&!d.bookings.length?`<div class="small muted">offered:<br>${d.offered.map((x,i)=>`${i+1}) ${esc(x)}`).join('<br>')}</div>`:''}${bk||'<div class="muted small">no booking</div>'}
@@ -81,6 +83,7 @@ async function loadDetail(){if(!sel)return;
    <div class="small muted" style="margin-top:8px">LLM: ${d.usage.calls} calls · ≈$${(+d.usage.cost).toFixed(4)}</div>`;}
 async function auto(en){await api(`/a1/api/leads/${sel}/automation`,{method:'POST',body:JSON.stringify({enabled:en})});tick()}
 async function retry(){await api(`/a1/api/leads/${sel}/retry`,{method:'POST'});setTimeout(tick,800)}
+async function doReset(){resetDlg.close();await api(`/a1/api/leads/${sel}/reset`,{method:'POST'});sel=null;$('detail').innerHTML='';tick()}
 async function reconcile(){const r=await api(`/a1/api/leads/${sel}/reconcile`,{method:'POST'});alert(r.result);tick()}
 async function sendHuman(){const t=$('human').value.trim();if(!t||!sel)return;await api(`/a1/api/leads/${sel}/message`,{method:'POST',body:JSON.stringify({text:t})});$('human').value='';tick()}
 async function openPolicy(){const p=await api('/a1/api/policy');$('policyText').value=JSON.stringify(p,null,2);$('policyMsg').textContent='';policyDlg.showModal()}

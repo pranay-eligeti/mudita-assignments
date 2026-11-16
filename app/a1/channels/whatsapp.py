@@ -9,6 +9,7 @@ opens when the user messages us. Replies here are always responses to an inbound
 from __future__ import annotations
 
 import base64
+import contextvars
 import hashlib
 import hmac
 import re
@@ -18,6 +19,27 @@ import httpx
 
 from ...config import get_settings
 from .base import Inbound, SendResult, graph_post, http
+
+
+class Capture:
+    """While a Twilio webhook is being answered, replies are collected here and returned inline as TwiML instead of being
+    sent through the REST API. Twilio trial WhatsApp numbers accept replies this way; the REST API refuses free-form text
+    on them (error 21654). Once the webhook has answered (or timed out) "closed" is set and later sends use the REST API."""
+
+    def __init__(self) -> None:
+        self.texts: list[str] = []
+        self.closed = False
+
+
+_capture: contextvars.ContextVar[Capture | None] = contextvars.ContextVar("wa_capture", default=None)
+
+
+def start_capture(c: Capture) -> contextvars.Token:
+    return _capture.set(c)
+
+
+def end_capture(tok: contextvars.Token) -> None:
+    _capture.reset(tok)
 
 
 def _twilio_configured() -> bool:
@@ -108,6 +130,10 @@ def parse(payload: dict[str, Any]) -> list[Inbound]:
 
 def send(to: str, text: str) -> SendResult:
     s = get_settings()
+    cap = _capture.get()
+    if cap is not None and not cap.closed and _twilio_configured():
+        cap.texts.append(text[:1500])
+        return SendResult(True, provider_id="twiml")
     if _twilio_configured():
         return _send_twilio(to, text)
     if not _meta_configured():

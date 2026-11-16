@@ -67,6 +67,6 @@ header{border-bottom:3px solid var(--accent)}
 .card h2{color:var(--brand)}
 .band{background:#0b0b0b;color:#fff;padding:52px 20px;text-align:center}
 .band h2{font:400 clamp(34px,6vw,64px)/1.05 Anton,Impact,sans-serif;text-transform:uppercase;margin:0;letter-spacing:.01em;color:#fff}
-.band .pre{font-size:clamp(18px,2.6vw,30px);font-weight:300;margin:0 0 6px}
+.band .pre{font-size:clamp(18px,2.6vw,30px);font-weight:300;margin:0 auto 6px;max-width:none}
 .band p{max-width:640px;margin:14px auto 0;color:#e8e3d8}
 .band .pill-y{display:inline-block;margin-top:16px;background:var(--accent);color:#14110d;border-radius:99px;padding:6px 14px;font-weight:600;font-size:12px}

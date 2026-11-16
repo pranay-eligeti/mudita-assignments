@@ -111,6 +111,10 @@ What the tests **cannot** show: that the real model (Gemini free tier) extracts 
 
 Model: Gemini free tier (`LLM_PROVIDER=gemini`, model set by `MODEL`), so **$0 monetary cost per run, but rate limited**; 429s are retried with backoff. The dollar figures below are what the same token volume would cost on a paid model and use assumed prices. Token counts measured **in the UI** per run/lead from the API's reported token usage (`llm_calls` table). Pre-deployment *estimate* from actual prompt sizes (chars/4, output sizes estimated): **A2 happy path ≈ 5.1k input + 1.1k output tokens across 3 calls ≈ $0.03**; each revision round adds one Planner + one Review call (≈ +$0.03). **A1 ≈ 1 extraction call per inbound message (~0.5–1k tokens in, ~200 out) plus 1 compose call only when asking follow-ups**, so a full inquiry→booking conversation is typically 2–4 LLM calls, well under $0.05. Slot choice and "YES" replies are parsed deterministically and cost nothing. Prices are configurable and the defaults ($3 / $15 per M tokens) are **assumptions I have not verified**; replace them with current pricing before quoting a dollar figure.
 
+## WhatsApp and Instagram: exact blocker
+
+Both channels are implemented (webhook verification, signature check, dedup, send) and covered by tests against fakes, and the webhook endpoints are deployed, but **neither has been verified against the real provider**. In the Meta for Developers app-creation wizard (use cases WhatsApp and Instagram), the Business step reported "No businesses available", and Next stayed disabled because a business portfolio is required. Creating one failed with this message from Meta on my account: "Your Advertising Access is Restricted. You're no longer allowed to use Meta technologies to advertise. You can't run ads, manage advertising assets, or create new ad accounts or business portfolios." I did not try to work around the restriction. Until a Meta app exists under an account that can hold a business portfolio, these two rows stay incomplete, and no WhatsApp or Instagram demo case is claimed.
+
 ## Known limitations
 
 - A2 corrected facts: after a user correction, the superseded wording and its quote are hidden from the Planner and Review models (kept in storage for audit); the UI still shows the original transcript quote.
@@ -142,6 +146,6 @@ Built with Claude Code (Claude Sonnet 5.5) as a coding assistant for scaffolding
 | A1 policy engine, extraction guardrails, state machine | yes | yes | yes: real model on the email channel |
 | Email (Gmail) inbound/outbound | yes | yes | yes: real inquiry, qualification, slot offer, confirmation |
 | Google Calendar availability + booking | yes | yes | yes: real event created; repeated confirmation produced exactly one event |
-| WhatsApp Cloud API inbound/outbound | yes | yes | not yet (needs Meta developer setup) |
-| Instagram messaging inbound/outbound | yes | yes | not yet; blocker risk: Meta app Live-mode requirement. Incomplete until shown |
+| WhatsApp Cloud API inbound/outbound | yes | yes | **INCOMPLETE, blocked by Meta** (see below) |
+| Instagram messaging inbound/outbound | yes | yes | **INCOMPLETE, blocked by Meta** (see below) |
 | Deployment + 7-day uptime | yes (Render free) | n/a | deployed; uptime monitor running, 7 days not yet elapsed |

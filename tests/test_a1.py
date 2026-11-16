@@ -518,3 +518,42 @@ def test_admin_password_protects_dashboard_but_not_webhooks(env, monkeypatch):
     assert c.get("/a1/api/leads").status_code == 401
     assert c.get("/a1/api/leads", auth=("demo", "s3cret")).status_code == 200
     assert c.get("/webhooks/whatsapp", params={"hub.mode": "subscribe", "hub.verify_token": "wa-verify", "hub.challenge": "9"}).status_code == 200
+
+
+def test_parse_number_accepts_words_and_week_units_but_not_ambiguous_basis():
+    from app.a1.extract import parse_number
+    assert parse_number("four weeks", "weeks") == 4
+    assert parse_number("4 weeks", "weeks") == 4
+    assert parse_number("1 week", "weeks") == 1
+    assert parse_number("$20,000") == 20000
+    assert parse_number("15k") == 15000
+    # a per-month basis or a different unit is ambiguous: reject, never guess
+    assert parse_number("2,000 per month") is None
+    assert parse_number("5 months", "weeks") is None
+
+
+def test_merge_keeps_earlier_verified_fact_unless_newest_message_restates_it():
+    from app.a1.extract import merge_fields
+    old_f = {"service": "dashboards", "company_name": "Acme"}
+    old_e = [{"field": "service", "value": "dashboards", "quote": "dashboard", "message_index": 0},
+             {"field": "company_name", "value": "Acme", "quote": "Acme", "message_index": 0}]
+    f, e = merge_fields(old_f, old_e, {"service": "other", "budget_usd": 20000.0},
+                        [{"field": "service", "value": "other", "quote": "dashboard", "message_index": 0},
+                         {"field": "budget_usd", "value": 20000.0, "quote": "$20,000", "message_index": 1}], 2)
+    assert f["service"] == "dashboards" and f["budget_usd"] == 20000.0
+    assert {x["field"] for x in e} == {"service", "company_name", "budget_usd"}
+    f2, _ = merge_fields(f, e, {"service": "forecasting"},
+                         [{"field": "service", "value": "forecasting", "quote": "forecasting", "message_index": 2}], 3)
+    assert f2["service"] == "forecasting"
+
+
+def test_service_resolves_by_id_or_name_not_just_exact_id():
+    from app.a1.extract import resolve_service
+    from app.a1.policy import load_policy
+    pol = load_policy()
+    assert resolve_service(pol, "dashboards") == "dashboards"
+    assert resolve_service(pol, "Dashboards & BI") == "dashboards"
+    assert resolve_service(pol, "data pipelines") == "data_pipelines"
+    assert resolve_service(pol, "Forecasting & ML models") == "ml_forecasting"
+    assert resolve_service(pol, "mobile app development") == "other"
+    assert resolve_service(pol, "") == "other"

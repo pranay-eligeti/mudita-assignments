@@ -51,6 +51,6 @@ def home(request: Request):
     return templates.TemplateResponse(request, "index.html", {})
 
 
-@app.get("/healthz")
+@app.api_route("/healthz", methods=["GET", "HEAD"])  # HEAD: uptime monitors probe with it
 def healthz():
     return {"ok": True}

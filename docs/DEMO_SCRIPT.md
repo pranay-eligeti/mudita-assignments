@@ -4,7 +4,7 @@ Use only your own test accounts / authorised recipients. Open `/a1` in one windo
 
 ## Before you record (state as of 16 Nov 2026)
 
-**What is real and what is not.** Verified live: email inbound and outbound through the Gmail API, Google Calendar booking, the A1 cases listed in the README, and A2 cases 1 to 4 below (complete run, rule violation, fact correction, outage and resume). A2 session isolation and the bounded `needs_human` case are covered by automated tests but were not shown live. **Not verifiable: WhatsApp and Instagram** (Meta blocked app creation, see the README). Do not perform Case 1 steps 1 and 4 live. Instead click the `whatsapp` and `instagram` pills in the header: the panel shows the status, the exact Meta message, and the webhook URL. Say plainly that these two rows are incomplete.
+**What is real and what is not.** Verified live: email inbound and outbound through the Gmail API, Google Calendar booking, the A1 cases listed in the README, and A2 cases 1 to 4 below (complete run, rule violation, fact correction, outage and resume). A2 session isolation and the bounded `needs_human` case are covered by automated tests but were not shown live. **Instagram: verified live in development mode** (one tester account, full flow through a confirmed booking; see the README). **WhatsApp: receive-only** on a Twilio trial sandbox, so inbound, classification and slot offers work but replies do not reach the phone. In Case 1, do step 4 (Instagram) live. For step 1 (WhatsApp) show the message arriving and the lead in the dashboard, then click the `whatsapp` pill and say plainly that replies are not delivered. Instagram only answers accounts with a role on the Meta app, and the loop guard pauses a lead after 12 automatic messages in an hour, so keep the Instagram demo to one short conversation and do not rehearse it right before recording.
 
 **Accounts.** The assistant mailbox is the Google account connected on the dashboard (`pranayyeligeti@gmail.com`). Test senders must be a different address in `EMAIL_ALLOWED_SENDERS` (`eligetipranay@gmail.com`); mail from the assistant mailbox itself is deliberately ignored by the loop guard.
 
@@ -12,7 +12,7 @@ Use only your own test accounts / authorised recipients. Open `/a1` in one windo
 1. Open the site once about a minute before recording: the Render free instance sleeps and the first request is slow.
 2. On `/a1`, open each old lead and click **Reset lead** so the sender starts fresh. The calendar events stay; delete the `DEMO conflict` event by hand if it is still there.
 3. Gmail is polled every 30 seconds, so replies can take up to about 30 s. Fill the wait by talking through the evidence and rule trace.
-4. Case 3 occupied slot: create a calendar event on the offered slot, pick that slot, then reply YES.
+4. Instagram: before recording, **Reset lead** on the Instagram lead (or click Resume automation if it shows Human in control) and delete any calendar event it booked. Case 3 occupied slot: create a calendar event on the offered slot, pick that slot, then reply YES.
 5. Never type or show the admin password, API keys or the Render environment page on screen.
 
 ## Assignment 1 – cases
@@ -42,14 +42,14 @@ Use only your own test accounts / authorised recipients. Open `/a1` in one windo
 
 - Expired connection: in Google Account → Security → third-party access, revoke the app; send an inquiry → `calendar`/`email` pills turn red (`expired`), action log shows the error, the lead is told nothing false. Reconnect via **Connect Google**, press **Retry last step**.
 - Take over: press **Take over** on a lead, send messages from the channel → stored, no reply, no booking; type a human message from the dashboard; **Resume** to hand back.
-- Provider blocker (if Instagram DMs never arrive): show the app dashboard settings, tester role, webhook subscription and the `instagram` health pill; report it as **incomplete** with the exact symptom.
+- Provider limits: if an Instagram DM gets no reply, check the lead's action log for `loop_guard` first, then the Meta app's tester role and webhook subscription and the `instagram` health pill. Report WhatsApp as receive-only.
 
 ## Assignment 2 – cases (`/a2`)
 
 1. **Complete run**: Load sample → Start run. Show the three agent cards, click each for input/output, the shared-context fact table with source quotes, flagged gaps (date conflict, missing returns-policy owner), hand-offs, final plan split into *supported* vs *recommendation*, unresolved questions, cost line.
 2. **Rule violation sent back**: tick *Inject a weekend deadline* → Start. Event log shows the labelled **SIMULATED FAULT**; the Review round returns a feedback hand-off (R1, Saturday); the Planner revises; second review passes.
-3. **Changed source fact**: click **Correct** on F2 (the "by Friday" fact) → set deadline wording `by Thursday`. Context v2; event log shows Intake reused and Planner + Review re-run; T1's deadline moves.
-4. **Recovery after model failure**: select *Simulate model outage in agent → review* → Start. Run stops `failed` at Review with a SIMULATED label; press **Resume** → only the Review step runs again (attempts = 2), Intake and Planner are not re-called.
+3. **Changed source fact**: click **Correct** on the fact that carries the "by Friday" wording (F4 in the verified run; check the id on screen) → set deadline wording `by Thursday`. Context v2; event log shows Intake reused and Planner + Review re-run; T1's deadline moves.
+4. **Recovery after model failure**: select the simulated model outage for the Planner (use the option label shown in the dropdown) → Start. Run stops `failed` at the Planner with a SIMULATED label; press **Resume** → only the Planner step runs again, Intake is not re-called (verified live).
 5. **Session isolation**: open `/a2` in a second browser profile (or private window); the run list is empty; pasting the first session's run URL/API path returns 404. Mention the automated test.
 6. **Bounded review**: (optional) edit a rule to be unsatisfiable → run → after 3 rounds status `needs_human` with unresolved issues listed.
 

@@ -138,6 +138,23 @@ def parse_number(s: str | None, unit: str | None = None) -> float | None:
     return n
 
 
+def _slug(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
+
+
+def resolve_service(policy: Policy, value: str) -> str:
+    """Map what the model returned to an offered service id: the id itself, or the service's name
+    (any case or punctuation, or an unambiguous leading part such as 'Dashboards & BI'). Else 'other'."""
+    v = _slug(value)
+    if not v:
+        return "other"
+    for sv in policy.services:
+        if v in (_slug(sv.id), _slug(sv.name)):
+            return sv.id
+    hits = [sv.id for sv in policy.services if len(v) >= 4 and _slug(sv.name).startswith(v)]
+    return hits[0] if len(hits) == 1 else "other"
+
+
 def norm(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip().lower()
 
@@ -164,9 +181,7 @@ def verify_fields(ex: Extraction, policy: Policy, lead_texts: list[str]) -> tupl
                 dropped.append(f"{name}: '{st.value}' is not a clean number; ignored")
                 continue
         if name == "service":
-            val = val.lower().strip()
-            if not policy.service(val):
-                val = "other"
+            val = resolve_service(policy, val)
         fields[name] = val
         evidence.append({"field": name, "value": val, "quote": st.quote, "message_index": src})
     return fields, evidence, dropped

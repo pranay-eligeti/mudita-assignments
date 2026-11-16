@@ -668,7 +668,7 @@ def test_acknowledgement_after_decline_or_booking_does_not_reopen_the_flow(env, 
 
 def test_ack_pattern_is_narrow():
     from app.a1.service import ACK
-    for ok in ["Thanks", "thank you!", "ok", "Thanks, ok", "\U0001F44D", "thx", "Thank you so much"]:
+    for ok in ["Thanks", "thank you!", "ok", "Thanks, ok", "\U0001F44D", "thx", "Thank you so much", "Ok sure", "ok thanks!", "yes", "no problem", "\U0001F44C"]:
         assert ACK.match(ok), ok
-    for no in ["thanks but can we move it", "ok what about thursday", "I need a dashboard", "no", "2"]:
+    for no in ["thanks but can we move it", "ok what about thursday", "I need a dashboard", "no", "2", "sure, can we do Friday instead", "yes please send more times", "no problem but I need another date"]:
         assert not ACK.match(no), no

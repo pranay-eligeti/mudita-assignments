@@ -9,6 +9,8 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from urllib.parse import parse_qsl
+
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, ValidationError
 
@@ -65,7 +67,7 @@ def health():
     h = get_health()
     configured = {"whatsapp": whatsapp.configured(), "instagram": instagram.configured(), "email": google.configured(), "calendar": google.configured()}
     needs = {
-        "whatsapp": "WA_VERIFY_TOKEN, WA_APP_SECRET, WA_ACCESS_TOKEN, WA_PHONE_NUMBER_ID",
+        "whatsapp": "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM (or Meta: WA_VERIFY_TOKEN, WA_APP_SECRET, WA_ACCESS_TOKEN, WA_PHONE_NUMBER_ID)",
         "instagram": "IG_VERIFY_TOKEN, IG_APP_SECRET, IG_ACCESS_TOKEN, IG_ACCOUNT_ID",
         "email": "GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET + connect Google",
         "calendar": "GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET + connect Google",
@@ -83,7 +85,7 @@ def health():
     return {
         "channels": out,
         "google_account": google.profile_email() if google.connected() and google.configured() else None,
-        "webhooks": {"whatsapp": s.base_url.rstrip("/") + "/webhooks/whatsapp", "instagram": s.base_url.rstrip("/") + "/webhooks/instagram",
+        "webhooks": {"whatsapp": s.base_url.rstrip("/") + "/webhooks/whatsapp", "whatsapp_twilio": s.base_url.rstrip("/") + "/webhooks/twilio/whatsapp", "instagram": s.base_url.rstrip("/") + "/webhooks/instagram",
                      "google_redirect_uri": google.redirect_uri()},
         "usage": {"calls": usage["calls"], "input_tokens": usage["i"], "output_tokens": usage["o"], "cost_usd": round(usage["c"], 4)},
     }
@@ -238,6 +240,20 @@ async def wa_receive(request: Request, bg: BackgroundTasks):
     for i in inbound:
         bg.add_task(_safe_handle, i)
     return {"received": len(inbound)}
+
+
+@public.post("/webhooks/twilio/whatsapp")
+async def twilio_wa_receive(request: Request, bg: BackgroundTasks):
+    s = get_settings()
+    params = dict(parse_qsl((await request.body()).decode("utf-8", "replace"), keep_blank_values=True))
+    url = s.base_url.rstrip("/") + "/webhooks/twilio/whatsapp"
+    if not whatsapp.verify_twilio_signature(url, params, request.headers.get("x-twilio-signature"), s.twilio_auth_token):
+        set_health("whatsapp", "error", "Twilio webhook signature verification failed (wrong TWILIO_AUTH_TOKEN, BASE_URL mismatch or forged request)")
+        raise HTTPException(403, "bad signature")
+    inbound = whatsapp.parse_twilio(params)
+    for i in inbound:
+        bg.add_task(_safe_handle, i)
+    return Response(content="<Response/>", media_type="application/xml")
 
 
 @public.get("/webhooks/instagram")

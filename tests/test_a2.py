@@ -395,3 +395,19 @@ def test_dependency_due_after_dependent_is_flagged():
     assert len(issues) == 1 and issues[0].task_id == "T1"
     ok = _plan(_t("T1", "Send numbers", "Dan", "2026-12-05", ["T2"]), _t("T2", "QA testing", "QA", "2026-12-04"))
     assert not [i for i in static_check(ok, _ctx(), RULES) if "after it" in i.problem]
+
+
+def test_model_never_sees_the_superseded_wording_of_a_corrected_fact():
+    from app.a2.agents import model_context
+    from app.a2.schemas import Context, Fact, SourceRef
+    f = Fact(id="F4", kind="constraint", text="Budget of three thousand dollars for ads.",
+             source=SourceRef(line_start=8, line_end=8, quote="I have approved eight thousand dollars"),
+             corrected=True, original_text="Budget of eight thousand dollars for ads.")
+    g = Fact(id="F1", kind="requirement", text="Live on Dec 7.",
+             source=SourceRef(line_start=3, line_end=3, quote="live on December 7th"))
+    ctx = Context(version=2, meeting_date="2026-11-16", participants=[], facts=[f, g], gaps=[])
+    d = model_context(ctx)
+    blob = str(d["facts"][0])
+    assert "eight thousand" not in blob and "original_text" not in blob
+    assert d["facts"][1]["source"]["quote"] == "live on December 7th"
+    assert ctx.facts[0].original_text and "eight thousand" in ctx.facts[0].source.quote

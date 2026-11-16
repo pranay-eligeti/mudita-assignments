@@ -570,3 +570,64 @@ def test_reset_lead_lets_the_same_sender_start_fresh_and_keeps_calendar_untouche
     assert client.post(f"/a1/api/leads/{lid}/reset").status_code == 404
     wa.say("Hi, we need a dashboard")                       # same sender, new lead
     assert lead()["lead"]["id"] != lid
+
+
+# ================================================================ WhatsApp through Twilio
+
+
+def test_twilio_whatsapp_channel(env, client, monkeypatch):
+    import base64
+    import urllib.parse
+
+    import httpx
+
+    from app import config
+    from app.a1.channels import base as chbase
+    from app.a1.channels import whatsapp as wa_ch
+
+    for k, v in {"TWILIO_ACCOUNT_SID": "ACtest", "TWILIO_AUTH_TOKEN": "tw-secret", "TWILIO_WHATSAPP_FROM": "whatsapp:+14155238886"}.items():
+        monkeypatch.setenv(k, v)
+    config.reset_settings()
+    assert wa_ch.provider() == "twilio"
+    sent = []
+
+    def handler(request):
+        sent.append({"url": str(request.url), "form": dict(urllib.parse.parse_qsl(request.content.decode())), "auth": request.headers.get("authorization")})
+        return httpx.Response(201, json={"sid": f"SM{len(sent)}"})
+
+    chbase.set_http(httpx.Client(transport=httpx.MockTransport(handler)))
+    script(env, {FULL: FULL_EX})
+
+    def post(body, sid, sig=None):
+        params = {"MessageSid": sid, "From": "whatsapp:+919999900001", "To": "whatsapp:+14155238886", "Body": body, "ProfileName": "Priya", "NumMedia": "0"}
+        data = "http://testserver/webhooks/twilio/whatsapp" + "".join(k + params[k] for k in sorted(params))
+        good = base64.b64encode(hmac.new(b"tw-secret", data.encode(), hashlib.sha1).digest()).decode()
+        return client.post("/webhooks/twilio/whatsapp", data=params, headers={"x-twilio-signature": sig or good})
+
+    assert post(FULL, "SM1", sig="forged").status_code == 403 and not sent        # unsigned or forged requests never reach the engine
+    assert post(FULL, "SM1").status_code == 200
+    d = lead()
+    assert d["lead"]["state"] == "offering_slots" and d["lead"]["classification"] == "qualified"
+    assert len(sent) == 1 and sent[0]["url"].endswith("/Accounts/ACtest/Messages.json")
+    assert sent[0]["form"]["To"] == "whatsapp:+919999900001" and sent[0]["form"]["From"] == "whatsapp:+14155238886" and sent[0]["auth"].startswith("Basic ")
+    post(FULL, "SM1")                                                               # Twilio redelivers on timeout: same MessageSid is ignored
+    assert len(sent) == 1 and env.google.insert_calls == 0
+    assert env.meta.sent == []                                                      # the Meta Graph path was not used
+
+
+def test_twilio_send_failures_are_reported(env, monkeypatch):
+    import httpx
+
+    from app import config
+    from app.a1.channels import base as chbase
+    from app.a1.channels import whatsapp as wa_ch
+
+    for k, v in {"TWILIO_ACCOUNT_SID": "ACtest", "TWILIO_AUTH_TOKEN": "tw-secret", "TWILIO_WHATSAPP_FROM": "+14155238886"}.items():
+        monkeypatch.setenv(k, v)
+    config.reset_settings()
+    chbase.set_http(httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(401, json={"code": 20003, "message": "Authenticate"}))))
+    r = wa_ch.send("919999900001", "hi")
+    assert not r.ok and r.expired and "20003" in r.error
+    chbase.set_http(httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(503, text="down"))))
+    r = wa_ch.send("919999900001", "hi")
+    assert not r.ok and r.uncertain

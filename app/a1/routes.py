@@ -132,6 +132,13 @@ def reconcile(lead_id: int):
     return {"result": service.reconcile_booking(lead_id)}
 
 
+@router.post("/api/leads/{lead_id}/reset")
+def reset_lead(lead_id: int):
+    if not service.reset_lead(lead_id):
+        raise HTTPException(404)
+    return {"ok": True}
+
+
 @router.post("/api/poll-email")
 def poll_email_now():
     return {"processed": service.poll_gmail_once()}

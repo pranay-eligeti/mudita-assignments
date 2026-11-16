@@ -41,3 +41,21 @@ details summary{cursor:pointer;color:var(--brand);font-weight:600}
 .banner{padding:10px 12px;border-radius:8px;margin-bottom:10px;font-weight:600}
 .banner.bad{background:#fde7e7;color:var(--bad)}.banner.warn{background:#fdf0dd;color:var(--warn)}.banner.ok{background:#e3f6ea;color:var(--ok)}
 @media(max-width:1000px){.g2{grid-template-columns:1fr}.agents{flex-direction:column}}
+/* polish */
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+button{transition:background .15s,box-shadow .15s}
+button:hover:not(:disabled){background:#f3f5fa}
+button.primary:hover:not(:disabled){background:#314bbd}
+.card{box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.lead,.agent{transition:box-shadow .15s}
+.lead:hover,.agent:hover{box-shadow:0 2px 8px rgba(16,24,40,.09)}
+.toast-wrap{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:50}
+.toast{background:#1c2230;color:#fff;padding:10px 14px;border-radius:8px;max-width:380px;box-shadow:0 6px 20px rgba(16,24,40,.25);animation:tin .2s}
+.toast.err{background:var(--bad)}
+@keyframes tin{from{opacity:0;transform:translateY(6px)}}
+.hero{padding:8px 0 18px}.hero h2{font-size:26px;margin:0 0 6px;text-transform:none;letter-spacing:0;color:var(--ink)}
+.hero p{margin:0;color:var(--mute);max-width:640px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.tiles .card h2{color:var(--ink);font-size:17px;text-transform:none;letter-spacing:0}
+.cov td:first-child{font-weight:600;white-space:nowrap}
+@media(max-width:800px){.tiles{grid-template-columns:1fr}}

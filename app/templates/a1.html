@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>A1 · Sales assistant</title><link rel="stylesheet" href="/static/app.css">
+<title>A1 · Sales assistant</title><link rel="stylesheet" href="/static/app.css"><script src="/static/ui.js"></script>
 <style>
 .cols{display:grid;grid-template-columns:300px minmax(380px,1fr) 400px;gap:14px;align-items:start}
 .lead{padding:9px 10px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;cursor:pointer;background:#fff}
@@ -56,7 +56,7 @@ async function refreshHealth(){
    `<span class="badge" title="LLM usage for A1 (estimated cost)">${H.usage.calls} calls · ≈$${H.usage.cost_usd}</span>`;
   const bad=Object.entries(H.channels).filter(([k,v])=>['error','expired'].includes(v.status));
   $('alerts').innerHTML=bad.map(([k,v])=>`<div class="banner bad">${k}: ${esc(v.status)} — ${esc(v.detail||'')}</div>`).join('');}catch(e){}}
-async function gdisc(){if(confirm('Disconnect Google?')){await api('/a1/auth/google/disconnect',{method:'POST'});refreshHealth()}}
+async function gdisc(){if(await askConfirm('Disconnect Google? Email and calendar stop working until it is reconnected.','Disconnect')){await api('/a1/auth/google/disconnect',{method:'POST'});refreshHealth()}}
 async function refreshLeads(){
   const ls=await api('/a1/api/leads');
   $('leads').innerHTML=ls.length?ls.map(l=>`<div class="lead ${sel===l.id?'sel':''}" onclick="pick(${l.id})">
@@ -97,7 +97,7 @@ function openChan(k){const v=(H&&H.channels[k])||{};const w=H&&H.webhooks||{};
    <p class="muted">Last inbound: ${v.last_inbound_at||'never'} · last outbound: ${v.last_outbound_at||'never'}</p>`;
   chanDlg.showModal()}
 async function doReset(){resetDlg.close();await api(`/a1/api/leads/${sel}/reset`,{method:'POST'});sel=null;$('detail').innerHTML='';tick()}
-async function reconcile(){const r=await api(`/a1/api/leads/${sel}/reconcile`,{method:'POST'});alert(r.result);tick()}
+async function reconcile(){const r=await api(`/a1/api/leads/${sel}/reconcile`,{method:'POST'});toast(r.result);tick()}
 async function sendHuman(){const t=$('human').value.trim();if(!t||!sel)return;await api(`/a1/api/leads/${sel}/message`,{method:'POST',body:JSON.stringify({text:t})});$('human').value='';tick()}
 async function openPolicy(){const p=await api('/a1/api/policy');$('policyText').value=JSON.stringify(p,null,2);$('policyMsg').textContent='';policyDlg.showModal()}
 async function savePolicy(){try{await api('/a1/api/policy',{method:'PUT',body:$('policyText').value});$('policyMsg').textContent='Saved.';$('policyMsg').style.color='var(--ok)'}catch(e){$('policyMsg').textContent=e.message;$('policyMsg').style.color='var(--bad)'}}

@@ -110,11 +110,23 @@ def template_decline(policy: Policy, reasons: list[str]) -> str:
 OVERRIDE_NOTICE = "I can't change our service criteria, pricing or who handles your enquiry, but I'm happy to continue with the details below. "
 
 
-def parse_number(s: str | None) -> float | None:
-    """Parse '15000', '$15,000', '15k', '1.5 lakh' style budgets conservatively. Returns None if unsure."""
+_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+          "nine": 9, "ten": 10, "eleven": 11, "twelve": 12}
+
+
+def parse_number(s: str | None, unit: str | None = None) -> float | None:
+    """Parse '15000', '$15,000', '15k', 'four weeks' style values conservatively. Returns None if unsure.
+
+    `unit` names a unit word that may follow the number ('weeks'); any other trailing words, such as a
+    per-month budget basis, make the value ambiguous and are rejected rather than guessed.
+    """
     if not s:
         return None
     t = s.lower().replace(",", "").replace("$", "").replace("usd", "").strip()
+    if unit:
+        t = re.sub(rf"\s*{re.escape(unit.rstrip('s'))}s?$", "", t).strip()
+    if t in _WORDS:
+        return float(_WORDS[t])
     m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*(k|m)?", t)
     if not m:
         return None
@@ -147,7 +159,7 @@ def verify_fields(ex: Extraction, policy: Policy, lead_texts: list[str]) -> tupl
             continue
         val: Any = st.value.strip()
         if name in ("budget_usd", "start_within_weeks"):
-            val = parse_number(val)
+            val = parse_number(val, "weeks" if name == "start_within_weeks" else None)
             if val is None:
                 dropped.append(f"{name}: '{st.value}' is not a clean number; ignored")
                 continue

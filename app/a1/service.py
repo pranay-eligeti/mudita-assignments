@@ -38,7 +38,7 @@ MAX_BOT_MSGS_PER_HOUR = 12
 YES = re.compile(r"^\s*(yes|y|yep|yeah|yup|confirm|confirmed|ok|okay|sure|book it|go ahead|sounds good|that works|please do)\W*$", re.I)
 NO = re.compile(r"^\s*(none|no|nope|none of (these|them)( work)?|neither)\W*$", re.I)
 # Pure acknowledgements ("thanks", "ok", thumbs-up). After the flow has ended they must not restart it.
-ACK = re.compile(r"^\s*(?:(?:thanks|thank you|thank u|thx|ty|tysm|many thanks|cheers|ok|okay|k|cool|great|perfect|awesome|nice|got it|noted|alright|sounds good|will do|bye|good bye|goodbye|see you|take care|\U0001F44D|\U0001F64F)[\s.!,]*)+(?:so much|a lot)?[\s.!]*$", re.I)
+ACK = re.compile(r"^\s*(?:(?:thanks|thank you|thank u|thx|ty|tysm|many thanks|cheers|ok|okay|k|cool|great|perfect|awesome|nice|got it|noted|alright|sounds good|will do|bye|good bye|goodbye|see you|take care|sure|yes|yep|yeah|yup|fine|no problem|np|\U0001F44D|\U0001F64F|\U0001F44C|\U0001F60A|\U0001F642)[\s.!,]*)+(?:so much|a lot)?[\s.!]*$", re.I)
 NUM = re.compile(r"^\s*(?:option|slot|number|no\.?|#)?\s*(\d)\s*[).!]?\s*$", re.I)
 
 

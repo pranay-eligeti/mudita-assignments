@@ -1,9 +1,27 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mudita AI Generalist assignments</title><link rel="stylesheet" href="/static/app.css"></head>
-<body><header><h1>Mudita AI Generalist · assignments</h1></header>
-<main style="max-width:760px">
-<div class="card"><h2>Assignment 1</h2><p><b>Sales assistant.</b> Instagram, WhatsApp and email inquiries → qualification → routing → calendar booking.</p><a href="/a1"><button class="primary">Open dashboard</button></a></div>
-<div class="card" style="margin-top:14px"><h2>Assignment 2</h2><p><b>Three connected agents.</b> Intake → Planning ⇄ Review over a meeting transcript and company rules. Each browser session is private.</p><a href="/a2"><button class="primary">Open coordinator</button></a></div>
-<p class="muted small">See the repository README for demo access instructions, architecture and known limitations.</p>
-</main></body></html>
+<body><header><h1>Mudita AI Generalist · assignments</h1><span class="spacer"></span><span id="st" class="badge">checking…</span></header>
+<main style="max-width:980px">
+<div class="hero"><h2>Two working AI systems, with their limits stated</h2>
+<p>A sales assistant that qualifies and books inquiries across channels, and a three-agent coordinator with a bounded review loop. The model understands language; code owns policy, routing and idempotency.</p></div>
+<div class="tiles">
+<div class="card"><h2>Assignment 1 · Sales assistant</h2><p class="muted">Inquiry → qualification with evidence → routing → real Google Calendar booking, with human takeover and a full action log. Protected by HTTP basic auth (credentials are in the submission).</p><a href="/a1"><button class="primary">Open dashboard</button></a></div>
+<div class="card"><h2>Assignment 2 · Three agents</h2><p class="muted">Intake → Planning ⇄ Review with validated handoffs, run IDs, resume, fact correction with rerun, and labelled simulated faults. Each browser session is private.</p><a href="/a2"><button class="primary">Open coordinator</button></a></div>
+</div>
+<div class="card" style="margin-top:14px"><h2>Verified status</h2>
+<table class="cov">
+<tr><th>Area</th><th>Status</th><th>Detail</th></tr>
+<tr><td>Email channel</td><td><span class="badge b-ok">Live</span></td><td>Gmail OAuth, real calendar events, loop guard, sender allowlist</td></tr>
+<tr><td>Calendar booking</td><td><span class="badge b-ok">Live</span></td><td>Free/busy recheck, occupied-slot handling, one event per confirmation</td></tr>
+<tr><td>Injection and incomplete inquiries</td><td><span class="badge b-ok">Live</span></td><td>Override attempts flagged; policy decided in code, not by the model</td></tr>
+<tr><td>Human takeover</td><td><span class="badge b-ok">Live</span></td><td>Bot pauses; calendar re-checked on handback</td></tr>
+<tr><td>WhatsApp</td><td><span class="badge b-warn">Incomplete</span></td><td>Blocked by Meta account restrictions; setup and exact blocker shown in the dashboard channel panel</td></tr>
+<tr><td>Instagram</td><td><span class="badge b-warn">Incomplete</span></td><td>Same Meta blocker; no workaround attempted</td></tr>
+<tr><td>A2 pipeline, resume, correction rerun</td><td><span class="badge b-ok">Live</span></td><td>Three agents, bounded loop, superseded wording hidden from the models</td></tr>
+<tr><td>A2 session isolation</td><td><span class="badge b-ok">Live</span></td><td>A request without the session cookie sees no runs and gets 404 on another session's run</td></tr>
+</table></div>
+<p class="muted small">Repository README: setup, architecture, environment variable names, tests, measured cost and known limitations.</p>
+</main>
+<script>fetch('/healthz').then(r=>r.json()).then(j=>{const e=document.getElementById('st');e.textContent=j.ok?'Service up':'Degraded';e.className='badge '+(j.ok?'b-ok':'b-bad')}).catch(()=>{const e=document.getElementById('st');e.textContent='Unreachable';e.className='badge b-bad'})</script>
+</body></html>

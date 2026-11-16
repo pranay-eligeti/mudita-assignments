@@ -31,6 +31,28 @@
   <section id="view" class="card"><div class="muted">Load the sample and start a run. Each agent's input, output, the hand-offs between them and the final plan appear here.</div></section>
 </div>
 </main>
+<dialog id="factDlg" style="border:1px solid var(--line,#d6d9e0);border-radius:10px;padding:18px;max-width:520px;width:92%">
+  <form method="dialog" id="factForm" onsubmit="return false">
+    <h3 style="margin:0 0 4px">Correct fact <span id="factId" class="muted"></span></h3>
+    <div class="small muted" style="margin-bottom:10px">Saving creates a new context version and re-runs the plan from the Planner. Earlier versions are kept.</div>
+    <label class="small">Fact text<textarea id="factText" rows="3" style="width:100%"></textarea></label>
+    <label class="small">Stated deadline wording (blank = none)<input id="factDl" style="width:100%"></label>
+    <label class="small">Stated owner (blank = none)<input id="factOw" style="width:100%"></label>
+    <div id="factErr" class="small" style="color:var(--bad);min-height:18px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+      <button type="button" id="factCancel">Cancel</button>
+      <button type="button" id="factSave" class="primary">Save and re-run</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="resetDlg" style="border:1px solid var(--line,#d6d9e0);border-radius:10px;padding:18px;max-width:420px;width:92%">
+  <h3 style="margin:0 0 6px">Reset session?</h3>
+  <div class="small muted" style="margin-bottom:12px">This deletes every run in this browser session. Other sessions are not affected.</div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button type="button" id="resetCancel">Cancel</button>
+    <button type="button" id="resetOk" class="primary">Delete runs</button>
+  </div>
+</dialog>
 <script>
 let current=null, selAgent='planner', timer=null, lastView=null;
 const $=id=>document.getElementById(id);
@@ -48,7 +70,9 @@ async function startRun(){
   }catch(e){$('formMsg').textContent=e.message;$('formMsg').style.color='var(--bad)'}
   $('startBtn').disabled=false;
 }
-async function resetAll(){if(!confirm('Delete all runs in this session?'))return;await api('/a2/api/reset',{method:'POST'});current=null;lastView=null;$('view').innerHTML='<div class="muted">Session reset.</div>';refreshRuns()}
+function resetAll(){const d=$('resetDlg');$('resetCancel').onclick=()=>d.close();
+  $('resetOk').onclick=async()=>{d.close();await api('/a2/api/reset',{method:'POST'});current=null;lastView=null;$('view').innerHTML='<div class="muted">Session reset.</div>';refreshRuns()};
+  d.showModal()}
 async function refreshRuns(){const s=await api('/a2/api/session');$('sid').textContent=s.session;
   $('runs').innerHTML=s.runs.length?s.runs.map(r=>`<div><a href="#" onclick="current='${r.id}';poll();return false">${r.id}</a> <span class="badge ${cls(r.status)}">${r.status}</span> v${r.context_version}</div>`).join(''):'none'}
 function cls(s){return {done:'b-ok',running:'b-run',pending:'b-run',failed:'b-bad',needs_human:'b-warn'}[s]||''}
@@ -56,12 +80,14 @@ async function poll(){clearTimeout(timer);if(!current)return;
   try{const v=await api('/a2/api/runs/'+current);lastView=v;render(v);refreshRuns();
     if(['running','pending'].includes(v.status))timer=setTimeout(poll,1200)}catch(e){$('view').innerHTML='<div class="banner bad">'+esc(e.message)+'</div>'}}
 async function resume(){await api(`/a2/api/runs/${current}/resume`,{method:'POST'});poll()}
-async function correctFact(id){
-  const f=lastView.context.facts.find(x=>x.id===id);
-  const text=prompt('Corrected fact text (leave as is to keep):',f.text);if(text===null)return;
-  const dl=prompt('Stated deadline wording (blank = none):',f.deadline_stated||'');if(dl===null)return;
-  const ow=prompt('Stated owner (blank = none):',f.owner_stated||'');if(ow===null)return;
-  try{await api(`/a2/api/runs/${current}/facts/${id}`,{method:'POST',body:JSON.stringify({text,deadline_text:dl,owner:ow})});poll()}catch(e){alert(e.message)}}
+function correctFact(id){
+  const f=lastView.context.facts.find(x=>x.id===id);const d=$('factDlg');
+  $('factId').textContent=id;$('factText').value=f.text;$('factDl').value=f.deadline_stated||'';$('factOw').value=f.owner_stated||'';$('factErr').textContent='';
+  $('factCancel').onclick=()=>d.close();
+  $('factSave').onclick=async()=>{
+    try{await api(`/a2/api/runs/${current}/facts/${id}`,{method:'POST',body:JSON.stringify({text:$('factText').value,deadline_text:$('factDl').value,owner:$('factOw').value})});d.close();poll()}
+    catch(e){$('factErr').textContent=e.message}};
+  d.showModal()}
 function pickAgent(a){selAgent=a;render(lastView)}
 function agentCard(v,a,label,desc){const s=v.agents[a];
   const flt=v.steps.some(x=>x.agent===a&&x.simulated_fault);

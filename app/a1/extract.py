@@ -170,3 +170,24 @@ def verify_fields(ex: Extraction, policy: Policy, lead_texts: list[str]) -> tupl
         fields[name] = val
         evidence.append({"field": name, "value": val, "quote": st.quote, "message_index": src})
     return fields, evidence, dropped
+
+
+def merge_fields(old_fields: dict[str, Any], old_evidence: list[dict[str, Any]],
+                 new_fields: dict[str, Any], new_evidence: list[dict[str, Any]],
+                 n_lead_messages: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Keep facts verified on earlier turns unless the NEWEST lead message states them again.
+
+    The model re-reads the whole conversation every turn, so a re-extraction can disagree with an
+    earlier, grounded answer. Only a quote from the latest lead message may overwrite a stored value
+    ("the latest statement wins"); anything else is kept as it was verified.
+    """
+    latest = n_lead_messages - 1
+    fields = dict(old_fields)
+    by_field = {e["field"]: e for e in old_evidence}
+    for name, val in new_fields.items():
+        ev = next((e for e in new_evidence if e["field"] == name), None)
+        if name not in fields or (ev is not None and ev["message_index"] == latest):
+            fields[name] = val
+            if ev is not None:
+                by_field[name] = ev
+    return fields, [by_field[k] for k in fields if k in by_field]

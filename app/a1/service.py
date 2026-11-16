@@ -476,3 +476,18 @@ def lead_detail(lead_id: int) -> dict[str, Any] | None:
         "actions": [dict(a) for a in q("SELECT level,kind,detail,created_at FROM actions WHERE lead_id=? ORDER BY id DESC LIMIT 60", (lead_id,))],
         "usage": dict(q1("SELECT COUNT(*) calls, COALESCE(SUM(cost_usd),0) cost FROM llm_calls WHERE scope=?", (f"a1:lead:{lead_id}",))),
     }
+
+
+def reset_lead(lead_id: int) -> bool:
+    """Operator action for demos and retakes: remove a lead and its messages, bookings and actions so the same
+    sender starts a fresh lead. The Google Calendar event is NOT touched (it is the calendar's record), and
+    seen_events is kept so already-processed provider messages are never replayed."""
+    with _lock(lead_id):
+        lead = q1("SELECT sender_id, channel FROM leads WHERE id=?", (lead_id,))
+        if not lead:
+            return False
+        for table in ("messages", "bookings", "actions"):
+            run(f"DELETE FROM {table} WHERE lead_id=?", (lead_id,))
+        run("DELETE FROM leads WHERE id=?", (lead_id,))
+    log(None, "lead_reset", f"operator reset lead #{lead_id} ({lead['channel']}: {lead['sender_id']}); calendar events left in place", "warn")
+    return True

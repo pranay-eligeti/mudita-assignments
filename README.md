@@ -7,7 +7,7 @@ One FastAPI application, two routes:
 | `/a1` | 01 | Sales assistant for a fictional analytics consultancy (Lumen Analytics): Instagram + WhatsApp + email inquiries → LLM understanding → deterministic qualification and routing → Google Calendar booking, with human takeover |
 | `/a2` | 02 | Operations coordinator: three separate LLM agents (Intake → Planning ⇄ Review) turning a fictional meeting transcript + company rules into a reviewed action plan |
 
-> **Status honesty.** Labels used below: *implemented* = code exists; *tested* = covered by the automated suite against fakes; *verified live* = exercised against the real provider. At the time of writing, everything is **implemented + tested**; the *verified live* column in [Status](#status) is filled in as each integration is exercised. Nothing is claimed live until it has been.
+> **Status honesty.** Labels used below: *implemented* = code exists; *tested* = covered by the automated suite against fakes; *verified live* = exercised against the real provider. Everything is **implemented + tested**; the *Verified live* column in [Status](#status) records what has actually been exercised against the real provider on the deployed site. Anything not marked "yes" has not been verified.
 
 ## Demo access
 
@@ -113,6 +113,11 @@ Model: Gemini free tier (`LLM_PROVIDER=gemini`, model set by `MODEL`), so **$0 m
 
 ## Known limitations
 
+- A2 corrected facts: after a user correction, the superseded wording and its quote are hidden from the Planner and Review models (kept in storage for audit); the UI still shows the original transcript quote.
+- A2 fact grounding: the code verifies that each fact's quoted text appears in the transcript, not that the quote supports every word of the fact; a fact can carry wording its quote does not cover.
+- A2 rule coverage: R1 to R4 are checked in code; R5 (Legal review) and R6 (Finance approval) are checked only by the Review model, so a plan can miss them.
+- A2 output varies between runs of the same input; the review loop bounds this but does not remove it.
+- A1 numeric parsing accepts words and week units ("four weeks") but rejects ambiguous bases such as "$2,000 per month" and asks again. A later message replaces an earlier verified value only if it restates that field.
 - Single process. Writers are serialised with a Postgres advisory lock; multi-instance additionally needs a job queue and per-lead distributed locks.
 - Free-tier constraints: Gemini free-tier rate limits and data-use terms (only fictional data is sent); Render free sleep/restarts; free Postgres expires after 30 days.
 - Budget parsing only accepts USD figures; other currencies are asked about again. Timeline is expressed in weeks.
@@ -133,10 +138,10 @@ Built with Claude Code (Claude Sonnet 5.5) as a coding assistant for scaffolding
 
 | Piece | Implemented | Tested (fakes) | Verified live |
 |---|---|---|---|
-| A2 three-agent pipeline, fact correction, resume, isolation | yes | yes | ☐ with real model |
-| A1 policy engine, extraction guardrails, state machine | yes | yes | ☐ with real model |
-| Email (Gmail) inbound/outbound | yes | yes | ☐ |
-| Google Calendar availability + booking | yes | yes | ☐ |
-| WhatsApp Cloud API inbound/outbound | yes | yes | ☐ |
-| Instagram messaging inbound/outbound | yes | yes | ☐ (blocker risk: Live-mode requirement) |
-| Deployment + 7-day uptime | config provided | n/a | ☐ |
+| A2 three-agent pipeline, review loop, fact correction + rerun, resume, simulated faults | yes | yes | yes: real Gemini on the deployed site (weekend-deadline fault caught by Review; planner outage then Resume reused Intake; fact correction rerun dropped the Finance task at 3,000 USD) |
+| A1 policy engine, extraction guardrails, state machine | yes | yes | yes: real model on the email channel |
+| Email (Gmail) inbound/outbound | yes | yes | yes: real inquiry, qualification, slot offer, confirmation |
+| Google Calendar availability + booking | yes | yes | yes: real event created; repeated confirmation produced exactly one event |
+| WhatsApp Cloud API inbound/outbound | yes | yes | not yet (needs Meta developer setup) |
+| Instagram messaging inbound/outbound | yes | yes | not yet; blocker risk: Meta app Live-mode requirement. Incomplete until shown |
+| Deployment + 7-day uptime | yes (Render free) | n/a | deployed; uptime monitor running, 7 days not yet elapsed |

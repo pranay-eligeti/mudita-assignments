@@ -39,6 +39,8 @@ dialog{border:1px solid var(--line);border-radius:12px;width:min(760px,92vw)}
   <div class="small muted">Services, qualification criteria, reps, routing rules, timezone and working hours. Saved policy applies to the next message. The model cannot change it.</div>
   <textarea id="policyText" style="min-height:380px;margin-top:8px"></textarea><div id="policyMsg" class="small"></div>
   <div class="row" style="margin-top:8px"><button class="primary" onclick="savePolicy()">Save</button><button onclick="resetPolicy()">Reset to default</button><span class="spacer"></span><button onclick="policyDlg.close()">Close</button></div></dialog>
+<dialog id="chanDlg"><h2 id="chanTitle" style="margin-top:0"></h2><div id="chanBody" class="small"></div>
+  <div class="row" style="margin-top:10px"><span class="spacer"></span><button onclick="chanDlg.close()">Close</button></div></dialog>
 <dialog id="resetDlg"><h2 style="margin-top:0">Reset this lead?</h2><p class="small">Deletes this lead, its messages, bookings and action log from the dashboard so the same sender starts a fresh lead. Any Google Calendar event already created is not deleted. This cannot be undone.</p>
   <div class="row"><button class="danger" onclick="doReset()">Reset lead</button><button onclick="resetDlg.close()">Cancel</button></div></dialog>
 <script>
@@ -49,7 +51,7 @@ async function api(p,o){const r=await fetch(p,Object.assign({headers:{'Content-T
 const clsMap={qualified:'b-ok',not_qualified:'b-bad',needs_more_info:'b-warn',new:''};
 async function refreshHealth(){
   try{H=await api('/a1/api/health');
-  $('health').innerHTML=Object.entries(H.channels).map(([k,v])=>`<span class="pill ${v.status}" title="${esc(v.detail||'')}\nlast in: ${v.last_inbound_at||'—'}\nlast out: ${v.last_outbound_at||'—'}"><i></i>${k}: ${esc(v.status)}</span>`).join('')+
+  $('health').innerHTML=Object.entries(H.channels).map(([k,v])=>`<span class="pill ${v.status}" style="cursor:pointer" onclick="openChan('${k}')" title="${esc(v.detail||'')}\nlast in: ${v.last_inbound_at||'—'}\nlast out: ${v.last_outbound_at||'—'}"><i></i>${k}: ${esc(v.status)}</span>`).join('')+
    (H.google_account?`<span class="pill ok" title="connected Google account"><i></i>${esc(H.google_account)}</span><button onclick="gdisc()">Disconnect Google</button>`:`<a href="/a1/auth/google/start"><button class="primary">Connect Google (Gmail + Calendar)</button></a>`)+
    `<span class="badge" title="LLM usage for A1 (estimated cost)">${H.usage.calls} calls · ≈$${H.usage.cost_usd}</span>`;
   const bad=Object.entries(H.channels).filter(([k,v])=>['error','expired'].includes(v.status));
@@ -66,7 +68,7 @@ async function loadDetail(){if(!sel)return;
   const d=await api('/a1/api/leads/'+sel);const l=d.lead;
   $('convTitle').innerHTML=`<span class="ch ${l.channel}">${l.channel}</span> ${esc(l.sender_name||l.sender_id)} <span class="muted">${esc(l.sender_id)}</span>`;
   const chat=$('chat');const atBottom=chat.scrollTop+chat.clientHeight>=chat.scrollHeight-40;
-  chat.innerHTML=d.messages.map(m=>`<div class="msg ${m.direction==='in'?'in':m.author}"><div>${esc(m.text)}</div><div class="meta">${m.author} · ${m.created_at.slice(11,19)}${m.direction==='out'?' · '+m.delivery:''}${m.delivery_error?` <span style="color:var(--bad)">${esc(m.delivery_error)}</span>`:''}</div></div>`).join('');
+  chat.innerHTML=d.messages.map(m=>`<div class="msg ${m.direction==='in'?'in':m.author}"><div title="${esc((m.text.match(/^Subject:[^\n]*/)||[''])[0])}">${esc(m.text.replace(/^Subject:[^\n]*\n+/,''))}</div><div class="meta">${m.author} · ${m.created_at.slice(11,19)} UTC${m.direction==='out'?' · '+m.delivery:''}${m.delivery_error?` <span style="color:var(--bad)">${esc(m.delivery_error)}</span>`:''}</div></div>`).join('');
   if(atBottom)chat.scrollTop=chat.scrollHeight;
   const f=l.fields,ev=Object.fromEntries(l.evidence.map(e=>[e.field,e]));
   const row=(k,label)=>`<tr><td>${label}</td><td>${f[k]!==undefined?esc(f[k]):'<span class="muted">not stated</span>'}</td><td class="small muted">${ev[k]?'“'+esc(ev[k].quote)+'”':''}</td></tr>`;
@@ -79,10 +81,21 @@ async function loadDetail(){if(!sel)return;
    <h2 style="margin-top:14px">Rule trace</h2>${l.rule_trace.length?`<table>${l.rule_trace.map(t=>`<tr><td class="small"><b>${esc(t.rule)}</b></td><td><span class="badge ${t.result==='pass'||t.result==='match'?'b-ok':t.result==='fail'?'b-bad':t.result==='missing'?'b-warn':''}">${esc(t.result)}</span></td><td class="small muted">${esc(t.detail)}</td></tr>`).join('')}</table>`:'<div class="muted small">none yet</div>'}
    <h2 style="margin-top:14px">Meeting</h2>${d.pending?`<div class="ev">awaiting confirmation: ${esc(d.pending)}</div>`:''}${d.offered.length&&!d.bookings.length?`<div class="small muted">offered:<br>${d.offered.map((x,i)=>`${i+1}) ${esc(x)}`).join('<br>')}</div>`:''}${bk||'<div class="muted small">no booking</div>'}
    ${d.bookings.some(b=>['uncertain','failed'].includes(b.status))?`<button style="margin-top:6px" onclick="reconcile()">Reconcile with calendar</button>`:''}
-   <h2 style="margin-top:14px">Action log</h2><div style="max-height:260px;overflow:auto">${d.actions.map(a=>`<div class="ev act ${a.level}"><span class="muted">${a.created_at.slice(11,19)}</span> <b>${esc(a.kind)}</b> ${esc(a.detail)}</div>`).join('')||'<span class="muted small">empty</span>'}</div>
+   <h2 style="margin-top:14px">Action log</h2><div style="max-height:260px;overflow:auto">${d.actions.map(a=>`<div class="ev act ${a.level}"><span class="muted">${a.created_at.slice(11,19)} UTC</span> <b>${esc(a.kind)}</b> ${esc(a.detail)}</div>`).join('')||'<span class="muted small">empty</span>'}</div>
    <div class="small muted" style="margin-top:8px">LLM: ${d.usage.calls} calls · ≈$${(+d.usage.cost).toFixed(4)}</div>`;}
 async function auto(en){await api(`/a1/api/leads/${sel}/automation`,{method:'POST',body:JSON.stringify({enabled:en})});tick()}
 async function retry(){await api(`/a1/api/leads/${sel}/retry`,{method:'POST'});setTimeout(tick,800)}
+const BLOCKERS={
+ whatsapp:'Implemented and tested against fakes, webhook endpoint deployed, but NOT verified against Meta. Blocked on 16 Nov 2026: the Meta app wizard needs a business portfolio ("No businesses available"), and creating one failed with: "Your Advertising Access is Restricted. You\'re no longer allowed to use Meta technologies to advertise. You can\'t run ads, manage advertising assets, or create new ad accounts or business portfolios."',
+ instagram:'Implemented and tested against fakes, webhook endpoint deployed, but NOT verified against Meta. Blocked by the same business-portfolio requirement and account restriction as WhatsApp (see above); Instagram messaging in development mode also only delivers webhooks for app roles.'};
+function openChan(k){const v=(H&&H.channels[k])||{};const w=H&&H.webhooks||{};
+  $('chanTitle').textContent=k.charAt(0).toUpperCase()+k.slice(1)+' channel';
+  $('chanBody').innerHTML=`<div class="row"><span class="badge ${v.status==='ok'?'b-ok':v.status==='error'||v.status==='expired'?'b-bad':'b-warn'}">${esc(v.status)}</span></div>
+   ${v.detail?`<p>${esc(v.detail)}</p>`:''}
+   ${BLOCKERS[k]&&v.status!=='ok'?`<div class="banner bad" style="margin:8px 0"><b>Incomplete.</b> ${esc(BLOCKERS[k])}</div>`:''}
+   ${w[k]?`<p>Webhook URL: <code>${esc(w[k])}</code></p>`:''}
+   <p class="muted">Last inbound: ${v.last_inbound_at||'never'} · last outbound: ${v.last_outbound_at||'never'}</p>`;
+  chanDlg.showModal()}
 async function doReset(){resetDlg.close();await api(`/a1/api/leads/${sel}/reset`,{method:'POST'});sel=null;$('detail').innerHTML='';tick()}
 async function reconcile(){const r=await api(`/a1/api/leads/${sel}/reconcile`,{method:'POST'});alert(r.result);tick()}
 async function sendHuman(){const t=$('human').value.trim();if(!t||!sel)return;await api(`/a1/api/leads/${sel}/message`,{method:'POST',body:JSON.stringify({text:t})});$('human').value='';tick()}

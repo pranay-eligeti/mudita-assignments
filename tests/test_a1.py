@@ -636,3 +636,39 @@ def test_twilio_send_failures_are_reported(env, monkeypatch):
     chbase.set_http(httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(503, text="down"))))
     r = wa_ch.send("919999900001", "hi")
     assert not r.ok and r.uncertain
+
+
+def test_acknowledgement_after_decline_or_booking_does_not_reopen_the_flow(env, client):
+    wa = get_to_pending(env, client)
+    wa.say("none")
+    assert lead()["lead"]["state"] == "needs_attention"
+    n = len(env.meta.texts())
+    wa.say("Thanks!")
+    d = lead()
+    assert d["lead"]["state"] == "needs_attention"                      # state unchanged
+    assert len(env.meta.texts()) == n + 1 and "1)" not in env.meta.texts()[-1]   # one short reply, slots not re-offered
+    assert "welcome" in env.meta.texts()[-1].lower()
+    wa.say("ok")
+    assert "1)" not in env.meta.texts()[-1] and lead()["lead"]["state"] == "needs_attention"
+    # a real message still re-engages
+    before = len(env.meta.texts())
+    script(env, {FULL: FULL_EX, "actually can we do next week instead": FULL_EX})
+    wa.say("actually can we do next week instead")
+    assert len(env.meta.texts()) == before + 1 and "1)" in env.meta.texts()[-1]   # a real message re-engages: slots are offered again
+
+    other = "919999900002"
+    wa.say(FULL, other)
+    wa.say("2", other)
+    wa.say("yes", other)
+    assert lead(sid=other)["lead"]["state"] == "booked" and env.google.insert_calls == 1
+    wa.say("thank you so much", other)
+    assert lead(sid=other)["lead"]["state"] == "booked" and env.google.insert_calls == 1
+    assert "welcome" in env.meta.texts()[-1].lower()
+
+
+def test_ack_pattern_is_narrow():
+    from app.a1.service import ACK
+    for ok in ["Thanks", "thank you!", "ok", "Thanks, ok", "\U0001F44D", "thx", "Thank you so much"]:
+        assert ACK.match(ok), ok
+    for no in ["thanks but can we move it", "ok what about thursday", "I need a dashboard", "no", "2"]:
+        assert not ACK.match(no), no

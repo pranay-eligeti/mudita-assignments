@@ -672,3 +672,14 @@ def test_ack_pattern_is_narrow():
         assert ACK.match(ok), ok
     for no in ["thanks but can we move it", "ok what about thursday", "I need a dashboard", "no", "2", "sure, can we do Friday instead", "yes please send more times", "no problem but I need another date"]:
         assert not ACK.match(no), no
+
+
+def test_reprompt_while_offering_slots_repeats_the_list(env, client):
+    """If the first offer never reached the lead, a repeated inquiry must re-show the times, not say 'above'."""
+    script(env, {FULL: FULL_EX})
+    wa = WA(client)
+    wa.say(FULL)
+    n = len(env.meta.texts())
+    wa.say(FULL)
+    again = env.meta.texts()[n]
+    assert "1)" in again and "3)" in again and "above" not in again

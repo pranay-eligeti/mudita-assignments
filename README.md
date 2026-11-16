@@ -99,7 +99,7 @@ Principle: **the model understands language; code owns policy.** The model can o
 
 ## Environment variables
 
-See `.env.example`. Names only: `BASE_URL SECRET_KEY ADMIN_PASSWORD DATABASE_URL DB_PATH LLM_PROVIDER GEMINI_API_KEY ANTHROPIC_API_KEY LLM_MAX_ATTEMPTS MODEL PRICE_IN_PER_MTOK PRICE_OUT_PER_MTOK GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GMAIL_POLLING GMAIL_POLL_SECONDS EMAIL_ALLOWED_SENDERS WA_VERIFY_TOKEN WA_APP_SECRET WA_ACCESS_TOKEN WA_PHONE_NUMBER_ID WA_GRAPH_VERSION IG_VERIFY_TOKEN IG_APP_SECRET IG_ACCESS_TOKEN IG_ACCOUNT_ID IG_GRAPH_VERSION MODEL_FALLBACKS A2_MAX_REVIEW_ROUNDS A2_FAULT_INJECTION`. All keys are server-side only; the browser never receives a token.
+See `.env.example`. Names only: `BASE_URL SECRET_KEY ADMIN_PASSWORD DATABASE_URL DB_PATH LLM_PROVIDER GEMINI_API_KEY ANTHROPIC_API_KEY LLM_MAX_ATTEMPTS MODEL PRICE_IN_PER_MTOK PRICE_OUT_PER_MTOK GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GMAIL_POLLING GMAIL_POLL_SECONDS EMAIL_ALLOWED_SENDERS WA_VERIFY_TOKEN WA_APP_SECRET WA_ACCESS_TOKEN WA_PHONE_NUMBER_ID WA_GRAPH_VERSION TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_WHATSAPP_FROM IG_VERIFY_TOKEN IG_APP_SECRET IG_ACCESS_TOKEN IG_ACCOUNT_ID IG_GRAPH_VERSION MODEL_FALLBACKS A2_MAX_REVIEW_ROUNDS A2_FAULT_INJECTION`. All keys are server-side only; the browser never receives a token.
 
 ## Tests
 
@@ -123,11 +123,13 @@ Run on the deployed site on 16 Nov 2026 with the assistant mailbox connected thr
 | Human takeover | While in control, the lead's reply was recorded but no bot reply, extraction or booking happened; after Resume and Retry the lead was qualified, routed and offered slots |
 | Occupied slot | A conflicting calendar event was created on the chosen slot; the recheck at confirmation found it busy, logged slot_taken, created no event and offered new times |
 
-The Gmail channel is polled every 30 seconds, so replies can lag by up to that interval. Not verified live: WhatsApp, Instagram (see below), and an expired-Google-connection state (covered by tests only).
+The Gmail channel is polled every 30 seconds, so replies can lag by up to that interval. Not verified live: WhatsApp replies, Instagram (see below), and an expired-Google-connection state (covered by tests only).
 
-## WhatsApp and Instagram: exact blocker
+## WhatsApp: receive-only on a Twilio trial. Instagram: blocked.
 
-Both channels are implemented (webhook verification, signature check, dedup, send) and covered by tests against fakes, and the webhook endpoints are deployed, but **neither has been verified against the real provider**. In the Meta for Developers app-creation wizard (use cases WhatsApp and Instagram), the Business step reported "No businesses available", and Next stayed disabled because a business portfolio is required. Creating one failed with this message from Meta on my account: "Your Advertising Access is Restricted. You're no longer allowed to use Meta technologies to advertise. You can't run ads, manage advertising assets, or create new ad accounts or business portfolios." I did not try to work around the restriction. Until a Meta app exists under an account that can hold a business portfolio, these two rows stay incomplete, and no WhatsApp or Instagram demo case is claimed.
+**WhatsApp, partial (checked 16 Nov 2026).** Because the Meta route was blocked (below), the WhatsApp channel also supports a Twilio WhatsApp sandbox: set the `TWILIO_*` variables and the signature-checked webhook `POST /webhooks/twilio/whatsapp` is used. Live result: a real message from the verified tester number was received, classified with evidence, routed and given slot offers, and the lead and messages show in the dashboard. **Replies do not reach WhatsApp.** The app returns them in the webhook response and logs them as sent, but the Twilio trial sender only allows template messages: a free-text REST send fails with error 21654 ("ContentSid Required"), and nothing arrived on the phone. I could not see Twilio's per-message status, because its debugger needs a paid plan, so the exact cause is not confirmed. A trial also lets only the verified tester message the number, and the sandbox session expires after three days, so outside testers cannot use it. No end-to-end WhatsApp booking is claimed.
+
+**Meta route (WhatsApp Cloud API and Instagram).** Both are implemented (webhook verification, signature check, dedup, send) and covered by tests against fakes, and the webhook endpoints are deployed, but **neither has been verified against the real provider**. In the Meta for Developers app-creation wizard (use cases WhatsApp and Instagram), the Business step reported "No businesses available", and Next stayed disabled because a business portfolio is required. Creating one failed with this message from Meta on my account: "Your Advertising Access is Restricted. You're no longer allowed to use Meta technologies to advertise. You can't run ads, manage advertising assets, or create new ad accounts or business portfolios." I did not try to work around the restriction. Until a Meta app exists under an account that can hold a business portfolio, the Meta WhatsApp route and Instagram stay incomplete, and no Instagram demo case is claimed.
 
 ## Known limitations
 
@@ -141,7 +143,7 @@ Both channels are implemented (webhook verification, signature check, dedup, sen
 - Budget parsing only accepts USD figures; other currencies are asked about again. Timeline is expressed in weeks.
 - Slots are offered in the policy timezone only; the lead's timezone is not collected.
 - One meeting per lead; rescheduling/cancellation is handled by a human.
-- WhatsApp: only text messages are understood; replies outside the 24h window would need a template (not implemented). Instagram: text only; webhook delivery in development mode may be unreliable (see table).
+- WhatsApp (Twilio trial): receive-only, see above. WhatsApp: only text messages are understood; replies outside the 24h window would need a template (not implemented). Instagram: text only; webhook delivery in development mode may be unreliable (see table).
 - Gmail polling replies to the latest message of a thread and ignores quoted history heuristically (lines after `On … wrote:`/`>`).
 - Title-regex rules in A2 (`R3`) are heuristics; semantic rule checks rely on the Review Agent, which can miss things. Deterministic checks only cover what is expressible as `business_day`, `max_tasks_per_owner`, `dependency` plus structural validation.
 - A2 intake relies on exact-quote verification; a faithful paraphrase that is not a substring is flagged `ungrounded` (conservative by design).
@@ -160,6 +162,6 @@ Built with Claude Code (Claude Sonnet 5.5) as a coding assistant for scaffolding
 | A1 policy engine, extraction guardrails, state machine | yes | yes | yes: real model on the email channel |
 | Email (Gmail) inbound/outbound | yes | yes | yes: real inquiry, qualification, slot offer, confirmation |
 | Google Calendar availability + booking | yes | yes | yes: real event created; repeated confirmation produced exactly one event |
-| WhatsApp Cloud API inbound/outbound | yes | yes | **INCOMPLETE, blocked by Meta** (see below) |
+| WhatsApp inbound/outbound | yes | yes | **PARTIAL:** inbound verified live over a Twilio trial; replies not delivered; Meta route blocked (see below) |
 | Instagram messaging inbound/outbound | yes | yes | **INCOMPLETE, blocked by Meta** (see below) |
 | Deployment + 7-day uptime | yes (Render free) | n/a | deployed; uptime monitor running, 7 days not yet elapsed |

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import logging
 import secrets
 import threading
 from typing import Optional
+from xml.sax.saxutils import escape
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
@@ -13,6 +15,7 @@ from urllib.parse import parse_qsl
 
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, ValidationError
+from starlette.concurrency import run_in_threadpool
 
 from ..config import get_settings
 from ..db import q, q1
@@ -251,9 +254,19 @@ async def twilio_wa_receive(request: Request, bg: BackgroundTasks):
         set_health("whatsapp", "error", "Twilio webhook signature verification failed (wrong TWILIO_AUTH_TOKEN, BASE_URL mismatch or forged request)")
         raise HTTPException(403, "bad signature")
     inbound = whatsapp.parse_twilio(params)
-    for i in inbound:
-        bg.add_task(_safe_handle, i)
-    return Response(content="<Response/>", media_type="application/xml")
+    # Answer inside the webhook response (TwiML): works on Twilio trial numbers, which refuse free-form REST sends.
+    cap = whatsapp.Capture()
+    tok = whatsapp.start_capture(cap)
+    try:
+        try:
+            await asyncio.wait_for(asyncio.gather(*[run_in_threadpool(_safe_handle, i) for i in inbound]), timeout=12)
+        except asyncio.TimeoutError:
+            log.warning("twilio inbound handling exceeded 12s; replies produced after that use the REST API")
+    finally:
+        cap.closed = True
+        whatsapp.end_capture(tok)
+    body = "".join(f"<Message>{escape(t)}</Message>" for t in cap.texts)
+    return Response(content=f"<Response>{body}</Response>", media_type="application/xml")
 
 
 @public.get("/webhooks/instagram")

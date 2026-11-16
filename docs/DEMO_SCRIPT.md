@@ -2,6 +2,19 @@
 
 Use only your own test accounts / authorised recipients. Open `/a1` in one window and the real apps beside it.
 
+## Before you record (state as of 16 Nov 2026)
+
+**What is real and what is not.** Verified live: email inbound and outbound through the Gmail API, Google Calendar booking, the A1 cases listed in the README, and A2 cases 1 to 4 below (complete run, rule violation, fact correction, outage and resume). A2 session isolation and the bounded `needs_human` case are covered by automated tests but were not shown live. **Not verifiable: WhatsApp and Instagram** (Meta blocked app creation, see the README). Do not perform Case 1 steps 1 and 4 live. Instead click the `whatsapp` and `instagram` pills in the header: the panel shows the status, the exact Meta message, and the webhook URL. Say plainly that these two rows are incomplete.
+
+**Accounts.** The assistant mailbox is the Google account connected on the dashboard (`pranayyeligeti@gmail.com`). Test senders must be a different address in `EMAIL_ALLOWED_SENDERS` (`eligetipranay@gmail.com`); mail from the assistant mailbox itself is deliberately ignored by the loop guard.
+
+**Checklist**
+1. Open the site once about a minute before recording: the Render free instance sleeps and the first request is slow.
+2. On `/a1`, open each old lead and click **Reset lead** so the sender starts fresh. The calendar events stay; delete the `DEMO conflict` event by hand if it is still there.
+3. Gmail is polled every 30 seconds, so replies can take up to about 30 s. Fill the wait by talking through the evidence and rule trace.
+4. Case 3 occupied slot: create a calendar event on the offered slot, pick that slot, then reply YES.
+5. Never type or show the admin password, API keys or the Render environment page on screen.
+
 ## Assignment 1 – cases
 
 **Case 1 – a real inquiry from each channel; one completes qualification, routing and a confirmed booking**
@@ -47,3 +60,9 @@ Use only your own test accounts / authorised recipients. Open `/a1` in one windo
 ## Bug to talk about (real, found by the test-suite while building)
 
 After a fact correction the run silently stopped with "abandoned: a newer context version exists" and no plan. Cause: the Intake step recorded context version 1 (its input is only the transcript) but the staleness guard compared *that* number with the run's current version (2), so the guard treated the very execution that was supposed to run as superseded. Fix: separate the version stored on a step from the version an execution runs under (`exec_version`). A second finding in the same area: with identical feedback and an unchanged plan, round 3's Planner input equalled round 2's, so idempotency reused the cached output and the "third attempt" never called the model; including the round number in the step hash makes each bounded retry a genuine attempt while resume-of-the-same-round still reuses.
+
+## Second bug worth telling (found live while demoing)
+
+After a user corrected F4 from 8,000 to 3,000 USD, the plan still contained a Finance-approval task, because the Planner and Review models saw the corrected text next to the original transcript quote ("eight thousand") and the stored `original_text`, and applied the 5,000 USD rule to the old figure. Fix: `model_context()` hides the superseded wording and quote from both models (the stored context keeps them for audit) and both prompts state that a `corrected=true` fact is authoritative. After the fix the rerun dropped the Finance task. Regression test: `test_model_never_sees_the_superseded_wording_of_a_corrected_fact`.
+
+A smaller one: the "I can't change our service criteria" notice kept reappearing on later bot replies, because the extractor re-read the whole thread and re-flagged an old injection. The flag is now judged on the lead's most recent message only.

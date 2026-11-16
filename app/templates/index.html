@@ -15,7 +15,7 @@
 <tr><td>Calendar booking</td><td><span class="badge b-ok">Live</span></td><td>Free/busy recheck, occupied-slot handling, one event per confirmation</td></tr>
 <tr><td>Injection and incomplete inquiries</td><td><span class="badge b-ok">Live</span></td><td>Override attempts flagged; policy decided in code, not by the model</td></tr>
 <tr><td>Human takeover</td><td><span class="badge b-ok">Live</span></td><td>Bot pauses; calendar re-checked on handback</td></tr>
-<tr><td>WhatsApp</td><td><span class="badge b-warn">Receive-only</span></td><td>Live over a Twilio trial sandbox (verified tester number only): inbound messages are received, classified and routed. Replies are not delivered, because the trial sender only allows template messages. Not usable by outside testers.</td></tr>
+<tr><td>WhatsApp</td><td><span class="badge b-ok">Live (sandbox)</span></td><td>Verified live over the Twilio WhatsApp sandbox: inbound, qualification, slot offers, calendar booking and confirmation over a real chat. Sandbox limits: only phones that have joined the sandbox can message it, and the join expires after three days. Not usable by outside testers.</td></tr>
 <tr><td>Instagram</td><td><span class="badge b-ok">Live</span></td><td>Verified live in development mode: inbound, qualification, slot offers, calendar booking and confirmation over a real DM. Testers with an app role only.</td></tr>
 <tr><td>A2 pipeline, resume, correction rerun</td><td><span class="badge b-ok">Live</span></td><td>Three agents, bounded loop, superseded wording hidden from the models</td></tr>
 <tr><td>A2 session isolation</td><td><span class="badge b-ok">Live</span></td><td>A request without the session cookie sees no runs and gets 404 on another session's run</td></tr>

@@ -37,6 +37,8 @@ MAX_BOT_MSGS_PER_HOUR = 12
 
 YES = re.compile(r"^\s*(yes|y|yep|yeah|yup|confirm|confirmed|ok|okay|sure|book it|go ahead|sounds good|that works|please do)\W*$", re.I)
 NO = re.compile(r"^\s*(none|no|nope|none of (these|them)( work)?|neither)\W*$", re.I)
+# Pure acknowledgements ("thanks", "ok", thumbs-up). After the flow has ended they must not restart it.
+ACK = re.compile(r"^\s*(?:(?:thanks|thank you|thank u|thx|ty|tysm|many thanks|cheers|ok|okay|k|cool|great|perfect|awesome|nice|got it|noted|alright|sounds good|will do|bye|good bye|goodbye|see you|take care|\U0001F44D|\U0001F64F)[\s.!,]*)+(?:so much|a lot)?[\s.!]*$", re.I)
 NUM = re.compile(r"^\s*(?:option|slot|number|no\.?|#)?\s*(\d)\s*[).!]?\s*$", re.I)
 
 
@@ -191,6 +193,15 @@ def _process(lead_id: int) -> None:
     last_body = _body_only(last, lead["channel"])
     state = lead["state"]
 
+    if state in ("booked", "needs_attention") and ACK.match(last_body):
+        # the conversation already reached its end (confirmed or handed to a human): a thank-you must not reopen it
+        log(lead_id, "ack", f"acknowledgement received in state {state}; state unchanged, nothing re-offered")
+        if state == "booked":
+            _send(lead, "You're welcome! See you at the meeting.")
+        else:
+            rep = policy.rep(lead["assigned_rep"]) if lead["assigned_rep"] else None
+            _send(lead, f"You're welcome! {rep.name if rep else 'A team member'} will be in touch.")
+        return
     if state == "booked":
         b = q1("SELECT * FROM bookings WHERE lead_id=? AND status='confirmed'", (lead_id,))
         when = fmt_slot(b["start_iso"], b["end_iso"], policy) if b else "the agreed time"

@@ -50,6 +50,11 @@ class Settings:
     wa_phone_number_id: str = field(default_factory=lambda: _env("WA_PHONE_NUMBER_ID"))
     wa_graph_version: str = field(default_factory=lambda: _env("WA_GRAPH_VERSION", "v23.0"))
 
+    # --- WhatsApp via Twilio (Sandbox or a registered sender). If set, it is used instead of the Meta Cloud API above. ---
+    twilio_account_sid: str = field(default_factory=lambda: _env("TWILIO_ACCOUNT_SID"))
+    twilio_auth_token: str = field(default_factory=lambda: _env("TWILIO_AUTH_TOKEN"))
+    twilio_whatsapp_from: str = field(default_factory=lambda: _env("TWILIO_WHATSAPP_FROM"))  # e.g. whatsapp:+14155238886 (Sandbox number)
+
     # --- Instagram API with Instagram Login ---
     ig_verify_token: str = field(default_factory=lambda: _env("IG_VERIFY_TOKEN"))
     ig_app_secret: str = field(default_factory=lambda: _env("IG_APP_SECRET"))

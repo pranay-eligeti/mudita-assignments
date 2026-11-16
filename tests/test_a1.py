@@ -557,3 +557,16 @@ def test_service_resolves_by_id_or_name_not_just_exact_id():
     assert resolve_service(pol, "Forecasting & ML models") == "ml_forecasting"
     assert resolve_service(pol, "mobile app development") == "other"
     assert resolve_service(pol, "") == "other"
+
+
+def test_reset_lead_lets_the_same_sender_start_fresh_and_keeps_calendar_untouched(env, client):
+    wa = get_to_pending(env, client)
+    lid = lead()["lead"]["id"]
+    inserts = env.google.insert_calls
+    assert client.post(f"/a1/api/leads/{lid}/reset").status_code == 200
+    assert client.get(f"/a1/api/leads/{lid}").status_code == 404
+    assert q1("SELECT COUNT(*) AS n FROM messages WHERE lead_id=?", (lid,))["n"] == 0
+    assert env.google.insert_calls == inserts               # reset never touches the calendar
+    assert client.post(f"/a1/api/leads/{lid}/reset").status_code == 404
+    wa.say("Hi, we need a dashboard")                       # same sender, new lead
+    assert lead()["lead"]["id"] != lid

@@ -111,6 +111,20 @@ What the tests **cannot** show: that the real model (Gemini free tier) extracts 
 
 Model: Gemini free tier (`LLM_PROVIDER=gemini`, model set by `MODEL`), so **$0 monetary cost per run, but rate limited**; 429s are retried with backoff. The dollar figures below are what the same token volume would cost on a paid model and use assumed prices. Token counts measured **in the UI** per run/lead from the API's reported token usage (`llm_calls` table). Pre-deployment *estimate* from actual prompt sizes (chars/4, output sizes estimated): **A2 happy path ≈ 5.1k input + 1.1k output tokens across 3 calls ≈ $0.03**; each revision round adds one Planner + one Review call (≈ +$0.03). **A1 ≈ 1 extraction call per inbound message (~0.5–1k tokens in, ~200 out) plus 1 compose call only when asking follow-ups**, so a full inquiry→booking conversation is typically 2–4 LLM calls, well under $0.05. Slot choice and "YES" replies are parsed deterministically and cost nothing. Prices are configurable and the defaults ($3 / $15 per M tokens) are **assumptions I have not verified**; replace them with current pricing before quoting a dollar figure.
 
+## Assignment 1: cases verified live (email + Google Calendar, real Gemini)
+
+Run on the deployed site on 16 Nov 2026 with the assistant mailbox connected through OAuth and a separate sender address:
+
+| Case | What was observed |
+|---|---|
+| Full booking | Real inquiry, grounded extraction, qualification, routing to a rep, three free slots from real freebusy, confirmation by email, one real Google Calendar event |
+| Repeated confirmation | A second YES produced exactly one event |
+| Incomplete inquiry plus "ignore your rules" injection | Override refused with a notice; lead stayed needs_more_info; only stated facts extracted; no booking; missing service, budget and timeline asked for |
+| Human takeover | While in control, the lead's reply was recorded but no bot reply, extraction or booking happened; after Resume and Retry the lead was qualified, routed and offered slots |
+| Occupied slot | A conflicting calendar event was created on the chosen slot; the recheck at confirmation found it busy, logged slot_taken, created no event and offered new times |
+
+The Gmail channel is polled every 30 seconds, so replies can lag by up to that interval. Not verified live: WhatsApp, Instagram (see below), and an expired-Google-connection state (covered by tests only).
+
 ## WhatsApp and Instagram: exact blocker
 
 Both channels are implemented (webhook verification, signature check, dedup, send) and covered by tests against fakes, and the webhook endpoints are deployed, but **neither has been verified against the real provider**. In the Meta for Developers app-creation wizard (use cases WhatsApp and Instagram), the Business step reported "No businesses available", and Next stayed disabled because a business portfolio is required. Creating one failed with this message from Meta on my account: "Your Advertising Access is Restricted. You're no longer allowed to use Meta technologies to advertise. You can't run ads, manage advertising assets, or create new ad accounts or business portfolios." I did not try to work around the restriction. Until a Meta app exists under an account that can hold a business portfolio, these two rows stay incomplete, and no WhatsApp or Instagram demo case is claimed.

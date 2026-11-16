@@ -13,9 +13,9 @@ One FastAPI application, two routes:
 
 Fill in at submission time:
 
-- App: `https://<your-deployment>` (`/a1`, `/a2`)
+- App: `https://mudita-assignments.onrender.com` (`/a1`, `/a2`)
 - `/a1` dashboard login: user `demo`, password `<ADMIN_PASSWORD>` (HTTP Basic). `/a2` needs no login; each browser session is private.
-- Test inboxes to message (authorised test accounts only): Instagram `@<test-handle>`, WhatsApp `+<test-number>`, email `<test-inbox>`. See [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for exactly what to send.
+- Test inboxes to message (authorised test accounts only): Instagram `@<test-handle>`, WhatsApp `+1 415 523 8886` (Twilio sandbox: first send `join necessary-written` from your phone; the join lasts three days), email `pranayyeligeti@gmail.com`. See [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for exactly what to send.
 
 ## Setup
 

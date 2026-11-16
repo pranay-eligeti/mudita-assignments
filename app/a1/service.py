@@ -301,7 +301,11 @@ def _qualified_flow(lead: dict[str, Any], cls, policy: Policy, prefix: str) -> N
     if changed:
         log(lead_id, "routed", f"assigned to {rep.name} by " + next((t["rule"] for t in rtrace if t["result"] == "match"), "?"))
     if lead["state"] in ("offering_slots", "awaiting_confirmation") and not changed:
-        _send(lead, prefix + "Please reply with the number of a time above that suits you" + (" or YES to confirm your selection." if lead["state"] == "awaiting_confirmation" else "."))
+        policy_lines = "\n".join(f"{i}) {fmt_slot(s['start'], s['end'], policy)}" for i, s in enumerate(lead["offered_slots"], 1))
+        if lead["state"] == "awaiting_confirmation":
+            _send(lead, prefix + "Your selected time is waiting. Reply YES to confirm it, or reply with another number:\n" + policy_lines)
+        else:
+            _send(lead, prefix + "Please reply with the number of a time that suits you:\n" + policy_lines + "\n(Or reply NONE if none of these work.)")
         return
     _offer_slots(_lead(lead_id), policy, prefix)
 

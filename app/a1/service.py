@@ -25,7 +25,7 @@ from .channels import email as email_ch, instagram, whatsapp
 from .channels.base import Inbound, SendResult
 from .engine import classify, fmt_slot, route
 from .extract import (
-    OVERRIDE_NOTICE, compose_followup, extract, template_decline, template_followup, verify_fields,
+    OVERRIDE_NOTICE, compose_followup, extract, template_decline, template_followup, verify_fields, merge_fields,
 )
 from .health import log, set_health
 from .policy import Policy, load_policy
@@ -217,6 +217,7 @@ def _process(lead_id: int) -> None:
             log(lead_id, "llm_error", f"extraction failed: {e}. No automatic reply was sent; retry from the dashboard or take over.", "error")
             return
         fields, evidence, dropped = verify_fields(ex, policy, lead_texts)
+        fields, evidence = merge_fields(lead["fields"], lead["evidence"], fields, evidence, len(lead_texts))
         for d in dropped:
             log(lead_id, "ungrounded", d, "warn")
         cls = classify(fields, policy)

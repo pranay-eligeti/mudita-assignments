@@ -605,14 +605,19 @@ def test_twilio_whatsapp_channel(env, client, monkeypatch):
         return client.post("/webhooks/twilio/whatsapp", data=params, headers={"x-twilio-signature": sig or good})
 
     assert post(FULL, "SM1", sig="forged").status_code == 403 and not sent        # unsigned or forged requests never reach the engine
-    assert post(FULL, "SM1").status_code == 200
+    r = post(FULL, "SM1")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("application/xml")
+    assert "<Message>" in r.text and "1)" in r.text and "3)" in r.text              # the reply is returned inline as TwiML (works on trial numbers)
     d = lead()
     assert d["lead"]["state"] == "offering_slots" and d["lead"]["classification"] == "qualified"
-    assert len(sent) == 1 and sent[0]["url"].endswith("/Accounts/ACtest/Messages.json")
+    assert sent == [] and env.meta.sent == []                                       # no REST call and no Meta call were needed
+    assert [m["delivery"] for m in d["messages"] if m["direction"] == "out"] == ["sent"]
+    r2 = post(FULL, "SM1")                                                          # Twilio redelivers on timeout: same MessageSid is ignored
+    assert r2.status_code == 200 and "<Message>" not in r2.text and env.google.insert_calls == 0
+    # outside a webhook (an operator message from the dashboard) the REST API is used
+    res = wa_ch.send("919999900001", "operator hello")
+    assert res.ok and len(sent) == 1 and sent[0]["url"].endswith("/Accounts/ACtest/Messages.json")
     assert sent[0]["form"]["To"] == "whatsapp:+919999900001" and sent[0]["form"]["From"] == "whatsapp:+14155238886" and sent[0]["auth"].startswith("Basic ")
-    post(FULL, "SM1")                                                               # Twilio redelivers on timeout: same MessageSid is ignored
-    assert len(sent) == 1 and env.google.insert_calls == 0
-    assert env.meta.sent == []                                                      # the Meta Graph path was not used
 
 
 def test_twilio_send_failures_are_reported(env, monkeypatch):

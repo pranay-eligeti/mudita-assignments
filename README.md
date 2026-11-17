@@ -11,11 +11,11 @@ One FastAPI application, two routes:
 
 ## Demo access
 
-Fill in at submission time:
+Access details:
 
 - App: `https://mudita-assignments.onrender.com` (`/a1`, `/a2`)
-- `/a1` dashboard login: user `demo`, password `<ADMIN_PASSWORD>` (HTTP Basic). `/a2` needs no login; each browser session is private.
-- Test inboxes to message (authorised test accounts only): Instagram `@<test-handle>`, WhatsApp `+1 415 523 8886` (Twilio sandbox: first send `join necessary-written` from your phone; the join lasts three days), email `pranayyeligeti@gmail.com`. See [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for exactly what to send.
+- `/a1` dashboard login: user `demo`, password sent separately with the submission, not stored in this public repo (HTTP Basic). `/a2` needs no login; each browser session is private.
+- Test inboxes to message (authorised test accounts only): Instagram: the handle sent with the submission (testers only: the Meta app is in development mode), WhatsApp `+1 415 523 8886` (Twilio sandbox: first send `join necessary-written` from your phone; the join lasts three days), email `pranayyeligeti@gmail.com`. See [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for exactly what to send.
 
 ## Setup
 
@@ -25,7 +25,7 @@ pip install -r requirements.txt
 cp .env.example .env            # fill in; never commit .env
 export $(grep -v '^#' .env | xargs)
 uvicorn app.main:app --port 8000 --workers 1
-pytest                          # 50 tests, no network or API keys needed
+pytest                          # 73 tests, no network or API keys needed
 ```
 
 **Run with exactly one worker.** State lives in the database (Postgres in production via `DATABASE_URL`, SQLite for local runs and tests; one schema definition drives both); per-lead and per-run locks and the Gmail poller are in-process. Scaling out needs a queue and distributed locks (see Limitations).
@@ -103,7 +103,7 @@ See `.env.example`. Names only: `BASE_URL SECRET_KEY ADMIN_PASSWORD DATABASE_URL
 
 ## Tests
 
-`pytest` → 58 tests, run on SQLite by default and on Postgres 16 with `TEST_PG_URL=postgresql://user@host/db pytest` (each test gets its own schema). The LLM, Google (Calendar, Gmail, OAuth token endpoint) and Meta Graph API are replaced by scripted fakes at the **HTTP/SDK boundary**; everything in between (webhooks, signature checks, dedup, state machine, booking logic, SQL, orchestration) is production code. `tests/test_llm.py` verifies request shape, response parsing, error mapping, cost logging and (Gemini) 429/5xx backoff with `Retry-After` against mock transports, for both the Gemini REST backend and the Anthropic SDK backend. I also temporarily removed three safeguards (availability recheck, takeover check, deterministic event id) and confirmed the relevant tests fail.
+`pytest` → 73 tests, run on SQLite by default and on Postgres 16 with `TEST_PG_URL=postgresql://user@host/db pytest` (each test gets its own schema). The LLM, Google (Calendar, Gmail, OAuth token endpoint) and Meta Graph API are replaced by scripted fakes at the **HTTP/SDK boundary**; everything in between (webhooks, signature checks, dedup, state machine, booking logic, SQL, orchestration) is production code. `tests/test_llm.py` verifies request shape, response parsing, error mapping, cost logging and (Gemini) 429/5xx backoff with `Retry-After` against mock transports, for both the Gemini REST backend and the Anthropic SDK backend. I also temporarily removed three safeguards (availability recheck, takeover check, deterministic event id) and confirmed the relevant tests fail.
 
 What the tests **cannot** show: that the real model (Gemini free tier) extracts well from messy human text, that Meta delivers webhooks to a dev-mode app, or that Google's real latency/error behaviour matches the fakes. Those are covered by the live demo.
 
